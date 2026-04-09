@@ -105,7 +105,25 @@ body {
 .group-date { font-size: 18px; font-weight: 900; background: var(--text-main); color: #fff; padding: 4px 10px; }
 .group-total { font-family: var(--font-mono); font-size: 18px; font-weight: 900; background: var(--accent-neutral); border: 3px solid var(--border-color); padding: 4px 10px; }
 
-.expense-item { border: 3px solid var(--border-color); padding: 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; background: #fff; }
+.expense-item-container { margin-bottom: 12px; }
+.expense-item { border: 3px solid var(--border-color); padding: 16px; display: flex; justify-content: space-between; align-items: center; background: #fff; }
+
+/* Sub-Item / Breakdown Tree System */
+.breakdown-container { display: flex; padding-left: 20px; align-items: stretch; margin-top: -3px; } /* Pull up to hide double border visually if needed, or attach to bottom */
+.breakdown-tree-line { width: 3px; background: var(--border-color); margin-right: 16px; margin-left: 12px; }
+.breakdown-content { flex: 1; padding: 12px 0 0 0; display: flex; flex-direction: column; gap: 8px; }
+
+.sub-item { display: flex; justify-content: space-between; align-items: center; border: 2px solid var(--border-color); padding: 8px 12px; background: var(--bg-color); }
+.sub-info { display: flex; align-items: center; gap: 12px; }
+.sub-title { font-size: 14px; font-weight: 800; text-transform: uppercase; }
+.sub-amount { font-family: var(--font-mono); font-weight: 900; font-size: 15px; }
+.sub-item-form { display: flex; gap: 8px; align-items: center; }
+.sub-item-summary { font-size: 12px; font-weight: 900; text-transform: uppercase; color: var(--accent-primary); text-align: right; margin-top: 4px; }
+
+.neo-input.small { padding: 8px; font-size: 14px; height: 36px; }
+.action-btn.small { padding: 4px 8px; font-size: 11px; height: 36px; display: flex; align-items: center; justify-content: center; }
+.breakdown-btn { background: var(--accent-ebl); color: var(--text-main); }
+.breakdown-btn:hover { background: var(--accent-neutral); }
 .expense-info .title { font-size: 18px; font-weight: 900; margin-bottom: 8px; text-transform: uppercase; }
 .expense-amount-area { display: flex; align-items: center; gap: 10px; }
 .expense-mode { font-size: 12px; font-weight: 900; border: 2px solid var(--border-color); padding: 4px 8px; text-transform: uppercase; }
@@ -165,12 +183,21 @@ body {
   .neo-input-group { margin-bottom: 0; }
   .neo-btn { padding: 14px; font-size: 16px; }
   
-  /* Ledger Items: Wrap and distribute space purely for mobile taps */
+  /* Expense Items */
   .expense-group { margin-bottom: 24px; }
-  .expense-item { flex-direction: column; align-items: stretch; gap: 12px; padding: 12px; }
+  .expense-item { flex-direction: column; align-items: stretch; gap: 12px; padding: 12px; margin-bottom: 0; }
+  .expense-item-container { margin-bottom: 12px; }
   .expense-info { display: flex; flex-direction: column; }
   .expense-actions { display: flex; width: 100%; }
-  .action-btn { flex: 1; text-align: center; padding: 10px; } /* Huge tap box */
+  .action-btn { flex: 1; text-align: center; padding: 10px; } 
+
+  /* Mobile Breakdown adjustments */
+  .breakdown-container { padding-left: 10px; }
+  .breakdown-tree-line { margin-left: 6px; margin-right: 10px; }
+  .sub-item-form { flex-direction: column; align-items: stretch; gap: 8px; }
+  .sub-item-form .neo-input.small { width: 100%; height: 44px; font-size: 16px; }
+  .sub-item { flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; }
+  .sub-item .action-btn.del { width: 100%; padding: 8px; height: auto; }
 
   .stats-grid { gap: 12px; }
   .stat-box { padding: 12px; box-shadow: 2px 2px 0px 0px var(--border-color); }

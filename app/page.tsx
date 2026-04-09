@@ -8,6 +8,7 @@ import {
   updateExpense,
   useExpenses,
   type Expense,
+  type ExpenseSubItem,
   type SpendMode,
 } from "@/lib/expenses";
 
@@ -85,7 +86,7 @@ function SignedOut() {
       <h1 className="splash-title">Track<br/>Your<br/>Cash.</h1>
       <div><p className="splash-subtitle">Simple. Brutal. Fast.</p></div>
       <button className="neo-btn" onClick={() => void signInWithGoogle()}>
-        🚀 SIGN IN WITH GOOGLE
+        SIGN IN WITH GOOGLE
       </button>
     </div>
   );
@@ -116,13 +117,13 @@ function Dashboard({ uid }: { uid: string }) {
           className={`tab-btn ${mobileTab === "ledger" ? "active" : ""}`}
           onClick={() => setMobileTab("ledger")}
         >
-          🧾 EXPENSE
+          EXPENSE
         </button>
         <button 
           className={`tab-btn ${mobileTab === "add" ? "active" : ""}`}
           onClick={() => setMobileTab("add")}
         >
-          🔥 ADD
+          ADD NEW
         </button>
       </div>
 
@@ -142,8 +143,8 @@ function Dashboard({ uid }: { uid: string }) {
       </div>
 
       <div className={`main-content ${mobileTab === "add" ? "hide-on-mobile" : ""}`}>
-        <div className="neo-card">
-          <h2 className="card-title">🧾 Daily Expense</h2>
+        <div className="neo-card ledger-card">
+          <h2 className="card-title">DAILY EXPENSE</h2>
           
           {loading && <div style={{fontWeight: 900, fontSize: "24px"}}>SYNCING DATA...</div>}
           {error && <div style={{color: "red", fontWeight: 900}}>{error.message}</div>}
@@ -161,6 +162,12 @@ function Dashboard({ uid }: { uid: string }) {
       </div>
     </div>
   );
+}
+
+function sanitizeNumberInput(val: string) {
+  // Prevent any negative signs
+  if (val.includes("-")) return val.replace(/-/g, "");
+  return val;
 }
 
 function AddExpenseCard({ uid, onAdded }: { uid: string; onAdded?: () => void }) {
@@ -198,7 +205,7 @@ function AddExpenseCard({ uid, onAdded }: { uid: string; onAdded?: () => void })
 
   return (
     <div className="neo-card highlight">
-      <h2 className="card-title">🔥 New Expense</h2>
+      <h2 className="card-title">NEW EXPENSE</h2>
       
       <div className="compact-form-grid">
         <div className="neo-input-group">
@@ -218,8 +225,8 @@ function AddExpenseCard({ uid, onAdded }: { uid: string; onAdded?: () => void })
             value={mode}
             onChange={(e) => setMode(e.target.value as SpendMode)}
           >
-            <option value="EBL">💳 EBL</option>
-            <option value="bKash">📲 bKash</option>
+            <option value="EBL">EBL</option>
+            <option value="bKash">bKash</option>
           </select>
         </div>
 
@@ -227,10 +234,12 @@ function AddExpenseCard({ uid, onAdded }: { uid: string; onAdded?: () => void })
           <label>Amount</label>
           <input
             className="neo-input"
-            inputMode="numeric"
+            type="number"
+            min="0"
+            step="1"
             placeholder="e.g. 500"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => setAmount(sanitizeNumberInput(e.target.value))}
           />
         </div>
 
@@ -259,17 +268,7 @@ function AddExpenseCard({ uid, onAdded }: { uid: string; onAdded?: () => void })
   );
 }
 
-function DayGroup({
-  uid,
-  date,
-  list,
-  total,
-}: {
-  uid: string;
-  date: string;
-  list: Expense[];
-  total: number;
-}) {
+function DayGroup({ uid, date, list, total }: { uid: string; date: string; list: Expense[]; total: number; }) {
   return (
     <div className="expense-group">
       <div className="group-header">
@@ -287,26 +286,29 @@ function DayGroup({
 
 function ExpenseRow({ uid, it }: { uid: string; it: Expense }) {
   const [editing, setEditing] = useState(false);
+  const [breakingDown, setBreakingDown] = useState(false);
+  
+  // Edit State
   const [title, setTitle] = useState(it.title);
   const [amount, setAmount] = useState(String(it.amount));
   const [mode, setMode] = useState<SpendMode>(it.mode);
+  
+  // Breakdown State
+  const [bdTitle, setBdTitle] = useState("");
+  const [bdAmount, setBdAmount] = useState("");
+  
   const [busy, setBusy] = useState(false);
 
-  const changed =
-    title.trim() !== it.title ||
-    Number(amount) !== it.amount ||
-    mode !== it.mode;
+  const changed = title.trim() !== it.title || Number(amount) !== it.amount || mode !== it.mode;
 
-  async function onSave() {
+  const currentBreakdownTotal = (it.subItems || []).reduce((acc, sub) => acc + sub.amount, 0);
+
+  async function onSaveEdit() {
     const n = Number(amount);
     if (!Number.isFinite(n) || n <= 0) return;
     setBusy(true);
     try {
-      await updateExpense(uid, it.id, {
-        title: title.trim(),
-        amount: n,
-        mode,
-      });
+      await updateExpense(uid, it.id, { title: title.trim(), amount: n, mode });
       setEditing(false);
     } finally {
       setBusy(false);
@@ -322,19 +324,54 @@ function ExpenseRow({ uid, it }: { uid: string; it: Expense }) {
     }
   }
 
+  async function onSaveBreakdown() {
+    const n = Number(bdAmount);
+    if (!Number.isFinite(n) || n <= 0 || bdTitle.trim().length === 0) return;
+    
+    // Validate we don't exceed the parent amount
+    if (currentBreakdownTotal + n > it.amount) {
+      alert("Breakdown amount exceeds the parent expense total!");
+      return;
+    }
+    
+    setBusy(true);
+    try {
+      const newItem: ExpenseSubItem = { id: Date.now().toString(), title: bdTitle.trim(), amount: n };
+      const nextSubs = [...(it.subItems || []), newItem];
+      await updateExpense(uid, it.id, { subItems: nextSubs });
+      setBdTitle("");
+      setBdAmount("");
+      setBreakingDown(false);
+    } catch (e: any) {
+      alert("Breakdown failed to save via Firebase: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDeleteBreakdown(subId: string) {
+    setBusy(true);
+    try {
+      const nextSubs = (it.subItems || []).filter(sub => sub.id !== subId);
+      await updateExpense(uid, it.id, { subItems: nextSubs });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (editing) {
     return (
-      <div className="expense-item" style={{flexDirection: 'column', alignItems: 'stretch'}}>
+      <div className="expense-item" style={{flexDirection: "column", alignItems: "stretch"}}>
          <div className="edit-form-grid">
             <input className="neo-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
             <select className="neo-select" value={mode} onChange={(e) => setMode(e.target.value as SpendMode)}>
               <option value="EBL">EBL</option>
               <option value="bKash">bKash</option>
             </select>
-            <input className="neo-input" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount" />
+            <input className="neo-input" type="number" min="0" value={amount} onChange={(e) => setAmount(sanitizeNumberInput(e.target.value))} placeholder="Amount" />
          </div>
-         <div style={{display: 'flex', gap: '10px', marginTop: '16px'}}>
-            <button className="action-btn" onClick={() => void onSave()} disabled={busy || !changed}>SAVE</button>
+         <div style={{display: "flex", gap: "10px", marginTop: "16px"}}>
+            <button className="action-btn" onClick={() => void onSaveEdit()} disabled={busy || !changed}>SAVE</button>
             <button className="action-btn del" onClick={() => { setEditing(false); setTitle(it.title); setAmount(String(it.amount)); setMode(it.mode); }} disabled={busy}>CANCEL</button>
          </div>
       </div>
@@ -342,18 +379,54 @@ function ExpenseRow({ uid, it }: { uid: string; it: Expense }) {
   }
 
   return (
-    <div className="expense-item">
-      <div className="expense-info">
-        <div className="title">{it.title}</div>
-        <div className="expense-amount-area">
-          <span className={`expense-mode ${it.mode}`}>{it.mode}</span>
-          <span className="expense-amount">{fmtMoney(it.amount)}</span>
+    <div className="expense-item-container">
+      <div className="expense-item">
+        <div className="expense-info">
+          <div className="title">{it.title}</div>
+          <div className="expense-amount-area">
+            <span className={`expense-mode ${it.mode}`}>{it.mode}</span>
+            <span className="expense-amount">{fmtMoney(it.amount)}</span>
+          </div>
+        </div>
+        <div className="expense-actions">
+          <button className="action-btn breakdown-btn" onClick={() => setBreakingDown(!breakingDown)} disabled={busy} title="Breakdown this Expense">SPLIT</button>
+          <button className="action-btn" onClick={() => setEditing(true)} disabled={busy}>EDIT</button>
+          <button className="action-btn del" onClick={() => void onDelete()} disabled={busy}>DEL</button>
         </div>
       </div>
-      <div className="expense-actions">
-        <button className="action-btn" onClick={() => setEditing(true)} disabled={busy}>EDIT</button>
-        <button className="action-btn del" onClick={() => void onDelete()} disabled={busy}>DEL</button>
-      </div>
+
+      {/* Breakdown UI */}
+      {(it.subItems && it.subItems.length > 0 || breakingDown) && (
+        <div className="breakdown-container">
+          <div className="breakdown-tree-line"></div>
+          <div className="breakdown-content">
+            
+            {/* Existing Sub Items */}
+            {it.subItems && it.subItems.map((sub) => (
+              <div key={sub.id} className="sub-item">
+                <div className="sub-info">
+                  <span className="sub-title">{sub.title}</span>
+                  <span className="sub-amount">{fmtMoney(sub.amount)}</span>
+                </div>
+                <button className="action-btn del small" onClick={() => void onDeleteBreakdown(sub.id)} disabled={busy}>✕</button>
+              </div>
+            ))}
+
+            {/* Breakdown Form */}
+            {breakingDown && (
+              <div className="sub-item-form">
+                 <input className="neo-input small" placeholder="Sub-item" value={bdTitle} onChange={(e) => setBdTitle(e.target.value)} />
+                 <input className="neo-input small" type="number" min="0" placeholder="Amt" value={bdAmount} onChange={(e) => setBdAmount(sanitizeNumberInput(e.target.value))} />
+                 <button className="action-btn" onClick={() => void onSaveBreakdown()} disabled={busy || !bdTitle || !bdAmount}>ADD</button>
+              </div>
+            )}
+            
+            {(it.subItems && it.subItems.length > 0) && (
+               <div className="sub-item-summary">Remaining: {fmtMoney(it.amount - currentBreakdownTotal)}</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

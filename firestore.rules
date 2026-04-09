@@ -17,8 +17,7 @@ service cloud.firestore {
     }
 
     function isValidExpense(data) {
-      return data.keys().hasOnly(['date','amount','mode','title','createdAt'])
-        && data.date is string
+      return data.date is string
         && data.date.size() == 10
         && data.amount is number
         && data.amount > 0
@@ -27,13 +26,12 @@ service cloud.firestore {
         && data.title is string
         && data.title.size() > 0
         && data.title.size() <= 140
+        && (!('subItems' in data) || data.subItems is list)
         && data.createdAt is timestamp;
     }
 
     function isValidExpenseUpdate(newData, oldData) {
-      // createdAt cannot change; allow optional updatedAt.
-      return newData.keys().hasOnly(['date','amount','mode','title','createdAt','updatedAt'])
-        && newData.createdAt == oldData.createdAt
+      return newData.createdAt == oldData.createdAt
         && newData.date is string
         && newData.date.size() == 10
         && newData.amount is number
@@ -43,6 +41,7 @@ service cloud.firestore {
         && newData.title is string
         && newData.title.size() > 0
         && newData.title.size() <= 140
+        && (!('subItems' in newData) || newData.subItems is list)
         && (!('updatedAt' in newData) || newData.updatedAt is timestamp);
     }
   }

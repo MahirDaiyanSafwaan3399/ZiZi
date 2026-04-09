@@ -17,6 +17,12 @@ import { firestore } from "@/lib/firebase";
 
 export type SpendMode = "EBL" | "bKash";
 
+export type ExpenseSubItem = {
+  id: string;
+  title: string;
+  amount: number;
+};
+
 export type Expense = {
   id: string;
   date: string; // yyyy-mm-dd (local)
@@ -24,6 +30,7 @@ export type Expense = {
   mode: SpendMode;
   title: string;
   createdAtMs?: number;
+  subItems?: ExpenseSubItem[];
 };
 
 type ExpenseDoc = {
@@ -33,6 +40,7 @@ type ExpenseDoc = {
   title: string;
   createdAt: unknown;
   updatedAt?: unknown;
+  subItems?: ExpenseSubItem[];
 };
 
 function userExpensesCol(uid: string) {
@@ -65,6 +73,7 @@ export function useExpenses(uid: string) {
             mode: data.mode,
             title: data.title,
             createdAtMs,
+            subItems: data.subItems,
           });
         });
         setItems(next);
@@ -85,9 +94,10 @@ export async function addExpense(uid: string, input: Omit<Expense, "id" | "creat
   const payload: ExpenseDoc = {
     date: input.date,
     amount: input.amount,
-    mode: input.mode,
+      mode: input.mode,
     title: input.title,
     createdAt: serverTimestamp(),
+    ...(input.subItems && { subItems: input.subItems }),
   };
   await addDoc(userExpensesCol(uid), payload);
 }
@@ -95,7 +105,7 @@ export async function addExpense(uid: string, input: Omit<Expense, "id" | "creat
 export async function updateExpense(
   uid: string,
   id: string,
-  input: Partial<Pick<Expense, "date" | "amount" | "mode" | "title">>,
+  input: Partial<Pick<Expense, "date" | "amount" | "mode" | "title" | "subItems">>,
 ) {
   const ref = doc(firestore, "users", uid, "expenses", id);
   await updateDoc(ref, { ...input, updatedAt: serverTimestamp() });
