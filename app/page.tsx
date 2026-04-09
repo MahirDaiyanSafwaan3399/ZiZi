@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { logOut, signInWithGoogle, useAuthState } from "@/lib/auth";
 import {
   addExpense,
@@ -103,9 +103,9 @@ function Dashboard({ uid }: { uid: string }) {
   const groups = useMemo(() => groupByDate(items), [items]);
   const modes = settings.modes;
   
-  const [mobileTab, setMobileTab] = useState<"ledger" | "add" | "modes">("ledger");
+  const [mobileTab, setMobileTab] = useState<"ledger" | "add" | "sources">("ledger");
   
-  const totalByMode = useMemo(() => {
+  const totalBySource = useMemo(() => {
     return items.reduce((acc, x) => {
       acc[x.mode] = (acc[x.mode] || 0) + x.amount;
       return acc;
@@ -119,11 +119,11 @@ function Dashboard({ uid }: { uid: string }) {
       <div className="mobile-tab-nav">
         <button className={`tab-btn ${mobileTab === "ledger" ? "active" : ""}`} onClick={() => setMobileTab("ledger")}>EXPENSE</button>
         <button className={`tab-btn ${mobileTab === "add" ? "active" : ""}`} onClick={() => setMobileTab("add")}>ADD</button>
-        <button className={`tab-btn ${mobileTab === "modes" ? "active" : ""}`} onClick={() => setMobileTab("modes")}>MODES</button>
+        <button className={`tab-btn ${mobileTab === "sources" ? "active" : ""}`} onClick={() => setMobileTab("sources")}>SOURCES</button>
       </div>
 
       <div className={`sidebar ${mobileTab === "ledger" ? "hide-on-mobile" : ""}`}>
-        {mobileTab !== "modes" && (
+        {mobileTab !== "sources" && (
            <>
             <AddExpenseCard uid={uid} modes={modes} onAdded={() => setMobileTab("ledger")} />
             
@@ -131,24 +131,24 @@ function Dashboard({ uid }: { uid: string }) {
               {modes.map(m => (
                 <div key={m.id} className="stat-box" style={{ background: m.color, color: 'var(--text-main)' }}>
                   <div className="stat-label">{m.name.toUpperCase()} TOTAL</div>
-                  <div className="stat-value">{fmtMoney(totalByMode[m.id] || 0)}</div>
+                  <div className="stat-value">{fmtMoney(totalBySource[m.id] || 0)}</div>
                 </div>
               ))}
             </div>
            </>
         )}
 
-        {mobileTab === "modes" && (
-           <ModesManager uid={uid} settings={settings} />
+        {mobileTab === "sources" && (
+           <SourcesManager uid={uid} settings={settings} />
         )}
 
         {/* Desktop explicitly shows settings if they aren't on mobile view */}
         <div className="desktop-modes-wrapper hide-on-mobile" style={{marginTop: "24px"}}>
-           {mobileTab !== "modes" && <ModesManager uid={uid} settings={settings} />}
+           {mobileTab !== "sources" && <SourcesManager uid={uid} settings={settings} />}
         </div>
       </div>
 
-      <div className={`main-content ${mobileTab === "add" || mobileTab === "modes" ? "hide-on-mobile" : ""}`}>
+      <div className={`main-content ${mobileTab === "add" || mobileTab === "sources" ? "hide-on-mobile" : ""}`}>
         <div className="neo-card ledger-card">
           <h2 className="card-title">DAILY EXPENSE</h2>
           
@@ -175,20 +175,43 @@ function sanitizeNumberInput(val: string) {
   return val;
 }
 
-function ModesManager({ uid, settings }: { uid: string, settings: UserSettings }) {
+function SourcesManager({ uid, settings }: { uid: string, settings: UserSettings }) {
+  const presetColors = [
+    "#4f46e5", "#dca318", "#f34b7d", "#ea580c", 
+    "#16a34a", "#0bc99d", "#9333ea", "#0a0a0a",
+    "#3b82f6", "#eab308"
+  ];
+
   const [name, setName] = useState("");
-  const [color, setColor] = useState("#0bc99d");
+  const [color, setColor] = useState(presetColors[0]);
   const [busy, setBusy] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
 
-  const canAdd = name.trim().length > 0 && !busy;
+  const canSubmit = name.trim().length > 0 && !busy;
 
-  async function onAdd() {
-    if (!canAdd) return;
+  async function onSubmit() {
+    if (!canSubmit) return;
     setBusy(true);
     try {
-      const newModes = [...settings.modes, { id: name.trim().toUpperCase(), name: name.trim(), color }];
+      const trimmedName = name.trim();
+      let newModes = [...settings.modes];
+      
+      if (editId) {
+        newModes = newModes.map(m => m.id === editId ? { ...m, name: trimmedName, color } : m);
+      } else {
+        const id = trimmedName.toUpperCase();
+        if (newModes.some(m => m.id === id)) {
+           alert("Source already exists.");
+           setBusy(false);
+           return;
+        }
+        newModes.push({ id, name: trimmedName, color });
+      }
+      
       await saveUserSettings(uid, { modes: newModes });
       setName("");
+      setEditId(null);
+      setColor(presetColors[0]);
     } finally {
       setBusy(false);
     }
@@ -196,38 +219,84 @@ function ModesManager({ uid, settings }: { uid: string, settings: UserSettings }
 
   async function onDelete(modeId: string) {
     if (settings.modes.length <= 1) {
-      alert("You must have at least one mode.");
+      alert("You must have at least one source.");
       return;
     }
     setBusy(true);
     try {
       const newModes = settings.modes.filter(m => m.id !== modeId);
       await saveUserSettings(uid, { modes: newModes });
+      if (editId === modeId) {
+        cancelEdit();
+      }
     } finally {
       setBusy(false);
     }
   }
 
+  function startEdit(m: SpendModeDef) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setEditId(m.id);
+    setName(m.name);
+    setColor(m.color);
+  }
+
+  function cancelEdit() {
+    setEditId(null);
+    setName("");
+    setColor(presetColors[0]);
+  }
+
   return (
     <div className="neo-card highlight" style={{background: '#fff'}}>
-      <h2 className="card-title">MANAGE MODES</h2>
-      <div className="compact-form-grid" style={{marginBottom: "16px"}}>
+      <h2 className="card-title">MANAGE SOURCES</h2>
+      <div className="compact-form-grid" style={{marginBottom: "20px"}}>
          <div className="neo-input-group">
-            <label>Mode Name</label>
+            <label>Source Name</label>
             <input className="neo-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. CARD" />
          </div>
          <div className="neo-input-group">
             <label>Brand Color</label>
-            <input className="neo-input" type="color" value={color} onChange={e => setColor(e.target.value)} style={{padding: '4px', height: '44px'}} />
+            <div className="color-picker-wrapper">
+               {presetColors.map(c => (
+                  <button 
+                     key={c}
+                     className={`color-preset ${color === c ? 'active' : ''}`}
+                     style={{ background: c }}
+                     onClick={() => setColor(c)}
+                     type="button"
+                     aria-label={`Select color ${c}`}
+                  />
+               ))}
+               <div className={`custom-color-wrapper ${!presetColors.includes(color) ? 'active' : ''}`}>
+                  <input 
+                     type="color" 
+                     className="custom-color-input" 
+                     value={color} 
+                     onChange={e => setColor(e.target.value)} 
+                     title="Custom Color"
+                  />
+               </div>
+            </div>
          </div>
-         <button className="neo-btn full" onClick={() => void onAdd()} disabled={!canAdd}>{busy ? "..." : "ADD MODE"}</button>
+         {editId ? (
+            <div style={{display: 'flex', gap: '10px', marginTop: '8px'}}>
+              <button className="neo-btn full" style={{marginTop: 0, flex: 2}} onClick={() => void onSubmit()} disabled={!canSubmit}>{busy ? "..." : "SAVE"}</button>
+              <button className="neo-btn full" style={{marginTop: 0, flex: 1, background: 'var(--text-main)'}} onClick={cancelEdit} disabled={busy}>CANCEL</button>
+            </div>
+         ) : (
+            <button className="neo-btn full" onClick={() => void onSubmit()} disabled={!canSubmit}>{busy ? "..." : "ADD SOURCE"}</button>
+         )}
       </div>
 
       <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
          {settings.modes.map(m => (
-            <div key={m.id} style={{display: 'flex', border: '2px solid black', padding: '8px', background: m.color, justifyContent: 'space-between', alignItems: 'center'}}>
-               <span style={{fontWeight: 900, color: '#0a0a0a'}}>{m.name.toUpperCase()}</span>
-               <button className="action-btn del small" onClick={() => void onDelete(m.id)} disabled={busy} style={{boxShadow: 'none'}}>DEL</button>
+            <div key={m.id} style={{display: 'flex', border: '3px solid black', padding: '12px', background: m.color, justifyContent: 'space-between', alignItems: 'center', boxShadow: '4px 4px 0px 0px var(--border-color)'}}>
+               <span style={{fontWeight: 900, color: '#0a0a0a', fontSize: '16px'}}>{m.name.toUpperCase()}</span>
+               <div style={{display: 'flex', gap: '8px'}}>
+                 <button className="action-btn small" onClick={() => startEdit(m)} disabled={busy} style={{boxShadow: 'none', background: '#fff', color: 'var(--text-main)'}}>EDIT</button>
+                 <button className="action-btn del small" onClick={() => void onDelete(m.id)} disabled={busy} style={{boxShadow: 'none', background: 'var(--text-main)', color: '#fff'}}>DEL</button>
+               </div>
             </div>
          ))}
       </div>
@@ -280,10 +349,8 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
         </div>
 
         <div className="neo-input-group">
-          <label>Mode</label>
-          <select className="neo-select" value={mode} onChange={(e) => setMode(e.target.value as SpendMode)}>
-            {modes.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
+          <label>Source</label>
+          <SourceSelect modes={modes} value={mode} onChange={(v) => setMode(v as SpendMode)} />
         </div>
 
         <div className="neo-input-group">
@@ -396,9 +463,7 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
       <div className="expense-item" style={{flexDirection: "column", alignItems: "stretch"}}>
          <div className="edit-form-grid">
             <input className="neo-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
-            <select className="neo-select" value={mode} onChange={(e) => setMode(e.target.value as SpendMode)}>
-              {modes.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
+            <SourceSelect modes={modes} value={mode} onChange={(v) => setMode(v as SpendMode)} />
             <input className="neo-input" type="number" min="0" value={amount} onChange={(e) => setAmount(sanitizeNumberInput(e.target.value))} placeholder="Amount" />
          </div>
          <div style={{display: "flex", gap: "10px", marginTop: "16px"}}>
@@ -426,33 +491,97 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
         </div>
       </div>
 
-      {isExpanded && (
-        <div className="breakdown-container">
-          <div className="breakdown-tree-line"></div>
-          <div className="breakdown-content">
-            
-            {it.subItems && it.subItems.map((sub) => (
-              <div key={sub.id} className="sub-item">
-                <div className="sub-info">
-                  <span className="sub-title">{sub.title}</span>
-                  <span className="sub-amount">{fmtMoney(sub.amount)}</span>
+        {isExpanded && (
+          <div className="breakdown-container">
+            <div className="breakdown-tree-line"></div>
+            <div className="breakdown-content">
+              
+              {it.subItems && it.subItems.map((sub) => (
+                <div key={sub.id} className="sub-item">
+                  <div className="sub-info">
+                    <span className="sub-title">{sub.title}</span>
+                    <span className="sub-amount">{fmtMoney(sub.amount)}</span>
+                  </div>
+                  <button className="action-btn del small" onClick={() => void onDeleteBreakdown(sub.id)} disabled={busy}>✕</button>
                 </div>
-                <button className="action-btn del small" onClick={() => void onDeleteBreakdown(sub.id)} disabled={busy}>✕</button>
+              ))}
+  
+              <div className="sub-item-form">
+                 <input className="neo-input small" placeholder="Sub-item" value={bdTitle} onChange={(e) => setBdTitle(e.target.value)} />
+                 <input className="neo-input small" type="number" min="0" placeholder="Amt" value={bdAmount} onChange={(e) => setBdAmount(sanitizeNumberInput(e.target.value))} />
+                 <button className="action-btn" onClick={() => void onSaveBreakdown()} disabled={busy || !bdTitle || !bdAmount}>ADD</button>
+              </div>
+              
+              {(it.subItems && it.subItems.length > 0) && (
+                 <div className="sub-item-summary">Remaining: {fmtMoney(it.amount - currentBreakdownTotal)}</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  function SourceSelect({ value, onChange, modes, className = "" }: { value: string, onChange: (val: string) => void, modes: SpendModeDef[], className?: string }) {
+    const [open, setOpen] = useState(false);
+    const selectedDef = modes.find(m => m.id === value) || modes[0];
+    const ref = useRef<HTMLDivElement>(null);
+  
+    useEffect(() => {
+      function handleClick(e: MouseEvent) {
+        if (ref.current && !ref.current.contains(e.target as Node)) {
+          setOpen(false);
+        }
+      }
+      if (open) document.addEventListener("mousedown", handleClick);
+      return () => document.removeEventListener("mousedown", handleClick);
+    }, [open]);
+  
+    return (
+      <div className={`custom-select-wrapper ${className}`} style={{ position: 'relative' }} ref={ref}>
+        <button 
+          type="button" 
+          className="neo-input custom-select-btn" 
+          onClick={() => setOpen(!open)}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', width: '100%', background: '#fff' }}
+        >
+          {selectedDef ? (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span className="color-dot" style={{ background: selectedDef.color, width: '16px', height: '16px', borderRadius: '50%', display: 'inline-block', border: '3px solid black', boxShadow: '2px 2px 0px 0px var(--border-color)' }} />
+              {selectedDef.name.toUpperCase()}
+            </span>
+          ) : "SELECT SOURCE"}
+          <span style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', fontSize: '14px', fontWeight: 900 }}>▼</span>
+        </button>
+  
+        {open && (
+          <div className="custom-select-dropdown" style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, 
+            background: '#fff', border: '3px solid var(--border-color)', 
+            boxShadow: '6px 6px 0px 0px var(--border-color)',
+            marginTop: '8px', zIndex: 50, display: 'flex', flexDirection: 'column',
+            maxHeight: '260px', overflowY: 'auto'
+          }}>
+            {modes.map(m => (
+              <div 
+                key={m.id} 
+                className="custom-select-option"
+                onClick={() => { onChange(m.id); setOpen(false); }}
+                style={{
+                  padding: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px',
+                  borderBottom: '3px solid var(--border-color)',
+                  background: value === m.id ? 'var(--accent-neutral)' : 'transparent',
+                  fontWeight: 900,
+                  fontSize: '16px'
+                }}
+              >
+                <span className="color-dot" style={{ background: m.color, width: '16px', height: '16px', borderRadius: '50%', display: 'inline-block', border: '3px solid black', boxShadow: '2px 2px 0px 0px var(--border-color)' }} />
+                <span style={{flex: 1, textTransform: 'uppercase'}}>{m.name}</span>
+                {value === m.id && <span style={{fontSize: '18px'}}>✓</span>}
               </div>
             ))}
-
-            <div className="sub-item-form">
-               <input className="neo-input small" placeholder="Sub-item" value={bdTitle} onChange={(e) => setBdTitle(e.target.value)} />
-               <input className="neo-input small" type="number" min="0" placeholder="Amt" value={bdAmount} onChange={(e) => setBdAmount(sanitizeNumberInput(e.target.value))} />
-               <button className="action-btn" onClick={() => void onSaveBreakdown()} disabled={busy || !bdTitle || !bdAmount}>ADD</button>
-            </div>
-            
-            {(it.subItems && it.subItems.length > 0) && (
-               <div className="sub-item-summary">Remaining: {fmtMoney(it.amount - currentBreakdownTotal)}</div>
-            )}
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
+        )}
+      </div>
+    );
+  }
