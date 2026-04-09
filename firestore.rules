@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can only read/write their own expenses.
+    match /users/{userId}/expenses/{expenseId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && isValidExpense(request.resource.data);
+
+      allow update: if request.auth != null
+        && request.auth.uid == userId
+        && isValidExpenseUpdate(request.resource.data, resource.data);
+
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    function isValidExpense(data) {
+      return data.keys().hasOnly(['date','amount','mode','title','createdAt'])
+        && data.date is string
+        && data.date.size() == 10
+        && data.amount is number
+        && data.amount > 0
+        && data.mode is string
+        && (data.mode == 'EBL' || data.mode == 'bKash')
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() <= 140
+        && data.createdAt is timestamp;
+    }
+
+    function isValidExpenseUpdate(newData, oldData) {
+      // createdAt cannot change; allow optional updatedAt.
+      return newData.keys().hasOnly(['date','amount','mode','title','createdAt','updatedAt'])
+        && newData.createdAt == oldData.createdAt
+        && newData.date is string
+        && newData.date.size() == 10
+        && newData.amount is number
+        && newData.amount > 0
+        && newData.mode is string
+        && (newData.mode == 'EBL' || newData.mode == 'bKash')
+        && newData.title is string
+        && newData.title.size() > 0
+        && newData.title.size() <= 140
+        && (!('updatedAt' in newData) || newData.updatedAt is timestamp);
+    }
+  }
+}
+
