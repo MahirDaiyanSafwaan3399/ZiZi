@@ -15,8 +15,15 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Zizi — Neo-Brutalist Expense Tracker",
+  title: "ZiZi - Track your Cash.",
   description: "A brutalist daily expense tracker with Firebase.",
+  openGraph: {
+    images: [{ url: "/logo.png" }],
+  },
+  twitter: {
+    images: ["/logo.png"],
+    card: "summary_large_image",
+  },
 };
 
 export default function RootLayout({
