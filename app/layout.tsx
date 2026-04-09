@@ -16,7 +16,7 @@ const spaceMono = Space_Mono({
 
 export const metadata: Metadata = {
   title: "ZiZi - Track your Cash.",
-  description: "A brutalist daily expense tracker with Firebase.",
+  description: "A brutalist daily expense tracker for your daily life.",
   openGraph: {
     images: [{ url: "/logo.png" }],
   },
