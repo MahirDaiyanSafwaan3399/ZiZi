@@ -7,9 +7,13 @@ import {
   deleteExpense,
   updateExpense,
   useExpenses,
+  useUserSettings,
+  saveUserSettings,
   type Expense,
   type ExpenseSubItem,
   type SpendMode,
+  type SpendModeDef,
+  type UserSettings,
 } from "@/lib/expenses";
 
 function todayLocalIsoDate() {
@@ -38,10 +42,10 @@ function groupByDate(items: Expense[]) {
     total: list.reduce((s, x) => s + x.amount, 0),
     byMode: list.reduce(
       (acc, x) => {
-        acc[x.mode] += x.amount;
+        acc[x.mode] = (acc[x.mode] || 0) + x.amount;
         return acc;
       },
-      { EBL: 0, bKash: 0 } as Record<SpendMode, number>,
+      {} as Record<string, number>,
     ),
   }));
 }
@@ -94,55 +98,57 @@ function SignedOut() {
 
 function Dashboard({ uid }: { uid: string }) {
   const { items, loading, error } = useExpenses(uid);
+  const { settings, loading: settingsLoading } = useUserSettings(uid);
+  
   const groups = useMemo(() => groupByDate(items), [items]);
+  const modes = settings.modes;
   
-  const [mobileTab, setMobileTab] = useState<"ledger" | "add">("ledger");
+  const [mobileTab, setMobileTab] = useState<"ledger" | "add" | "modes">("ledger");
   
-  const byMode = useMemo(
-    () =>
-      items.reduce(
-        (acc, x) => {
-          acc[x.mode] += x.amount;
-          return acc;
-        },
-        { EBL: 0, bKash: 0 } as Record<SpendMode, number>,
-      ),
-    [items],
-  );
+  const totalByMode = useMemo(() => {
+    return items.reduce((acc, x) => {
+      acc[x.mode] = (acc[x.mode] || 0) + x.amount;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [items]);
+
+  if (settingsLoading) return <div><h1 className="splash-title">SYNCING SETTINGS...</h1></div>;
 
   return (
     <div className="dashboard-grid">
       <div className="mobile-tab-nav">
-        <button 
-          className={`tab-btn ${mobileTab === "ledger" ? "active" : ""}`}
-          onClick={() => setMobileTab("ledger")}
-        >
-          EXPENSE
-        </button>
-        <button 
-          className={`tab-btn ${mobileTab === "add" ? "active" : ""}`}
-          onClick={() => setMobileTab("add")}
-        >
-          ADD NEW
-        </button>
+        <button className={`tab-btn ${mobileTab === "ledger" ? "active" : ""}`} onClick={() => setMobileTab("ledger")}>EXPENSE</button>
+        <button className={`tab-btn ${mobileTab === "add" ? "active" : ""}`} onClick={() => setMobileTab("add")}>ADD</button>
+        <button className={`tab-btn ${mobileTab === "modes" ? "active" : ""}`} onClick={() => setMobileTab("modes")}>MODES</button>
       </div>
 
       <div className={`sidebar ${mobileTab === "ledger" ? "hide-on-mobile" : ""}`}>
-        <AddExpenseCard uid={uid} onAdded={() => setMobileTab("ledger")} />
+        {mobileTab !== "modes" && (
+           <>
+            <AddExpenseCard uid={uid} modes={modes} onAdded={() => setMobileTab("ledger")} />
+            
+            <div className="stats-grid">
+              {modes.map(m => (
+                <div key={m.id} className="stat-box" style={{ background: m.color, color: 'var(--text-main)' }}>
+                  <div className="stat-label">{m.name.toUpperCase()} TOTAL</div>
+                  <div className="stat-value">{fmtMoney(totalByMode[m.id] || 0)}</div>
+                </div>
+              ))}
+            </div>
+           </>
+        )}
 
-        <div className="stats-grid">
-          <div className="stat-box ebl">
-            <div className="stat-label">EBL Total</div>
-            <div className="stat-value">{fmtMoney(byMode.EBL)}</div>
-          </div>
-          <div className="stat-box bkash">
-            <div className="stat-label">bKash Total</div>
-            <div className="stat-value">{fmtMoney(byMode.bKash)}</div>
-          </div>
+        {mobileTab === "modes" && (
+           <ModesManager uid={uid} settings={settings} />
+        )}
+
+        {/* Desktop explicitly shows settings if they aren't on mobile view */}
+        <div className="desktop-modes-wrapper hide-on-mobile" style={{marginTop: "24px"}}>
+           {mobileTab !== "modes" && <ModesManager uid={uid} settings={settings} />}
         </div>
       </div>
 
-      <div className={`main-content ${mobileTab === "add" ? "hide-on-mobile" : ""}`}>
+      <div className={`main-content ${mobileTab === "add" || mobileTab === "modes" ? "hide-on-mobile" : ""}`}>
         <div className="neo-card ledger-card">
           <h2 className="card-title">DAILY EXPENSE</h2>
           
@@ -155,7 +161,7 @@ function Dashboard({ uid }: { uid: string }) {
 
           <div className="ledger-scroll-area">
             {groups.map((g) => (
-              <DayGroup key={g.date} uid={uid} date={g.date} list={g.list} total={g.total} />
+              <DayGroup key={g.date} uid={uid} date={g.date} list={g.list} total={g.total} modes={modes} />
             ))}
           </div>
         </div>
@@ -165,14 +171,73 @@ function Dashboard({ uid }: { uid: string }) {
 }
 
 function sanitizeNumberInput(val: string) {
-  // Prevent any negative signs
   if (val.includes("-")) return val.replace(/-/g, "");
   return val;
 }
 
-function AddExpenseCard({ uid, onAdded }: { uid: string; onAdded?: () => void }) {
+function ModesManager({ uid, settings }: { uid: string, settings: UserSettings }) {
+  const [name, setName] = useState("");
+  const [color, setColor] = useState("#0bc99d");
+  const [busy, setBusy] = useState(false);
+
+  const canAdd = name.trim().length > 0 && !busy;
+
+  async function onAdd() {
+    if (!canAdd) return;
+    setBusy(true);
+    try {
+      const newModes = [...settings.modes, { id: name.trim().toUpperCase(), name: name.trim(), color }];
+      await saveUserSettings(uid, { modes: newModes });
+      setName("");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDelete(modeId: string) {
+    if (settings.modes.length <= 1) {
+      alert("You must have at least one mode.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const newModes = settings.modes.filter(m => m.id !== modeId);
+      await saveUserSettings(uid, { modes: newModes });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="neo-card highlight" style={{background: '#fff'}}>
+      <h2 className="card-title">MANAGE MODES</h2>
+      <div className="compact-form-grid" style={{marginBottom: "16px"}}>
+         <div className="neo-input-group">
+            <label>Mode Name</label>
+            <input className="neo-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. CARD" />
+         </div>
+         <div className="neo-input-group">
+            <label>Brand Color</label>
+            <input className="neo-input" type="color" value={color} onChange={e => setColor(e.target.value)} style={{padding: '4px', height: '44px'}} />
+         </div>
+         <button className="neo-btn full" onClick={() => void onAdd()} disabled={!canAdd}>{busy ? "..." : "ADD MODE"}</button>
+      </div>
+
+      <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+         {settings.modes.map(m => (
+            <div key={m.id} style={{display: 'flex', border: '2px solid black', padding: '8px', background: m.color, justifyContent: 'space-between', alignItems: 'center'}}>
+               <span style={{fontWeight: 900, color: '#0a0a0a'}}>{m.name.toUpperCase()}</span>
+               <button className="action-btn del small" onClick={() => void onDelete(m.id)} disabled={busy} style={{boxShadow: 'none'}}>DEL</button>
+            </div>
+         ))}
+      </div>
+    </div>
+  );
+}
+
+function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendModeDef[]; onAdded?: () => void }) {
   const [date, setDate] = useState(todayLocalIsoDate());
-  const [mode, setMode] = useState<SpendMode>("EBL");
+  const [mode, setMode] = useState<SpendMode>(modes[0]?.id || "");
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState<string>("");
   const [busy, setBusy] = useState(false);
@@ -183,6 +248,7 @@ function AddExpenseCard({ uid, onAdded }: { uid: string; onAdded?: () => void })
     title.trim().length > 0 &&
     Number.isFinite(parsedAmount) &&
     parsedAmount > 0 &&
+    mode.length > 0 &&
     !busy;
 
   async function onSubmit() {
@@ -210,65 +276,33 @@ function AddExpenseCard({ uid, onAdded }: { uid: string; onAdded?: () => void })
       <div className="compact-form-grid">
         <div className="neo-input-group">
           <label>Date</label>
-          <input
-            className="neo-input"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
+          <input className="neo-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
 
         <div className="neo-input-group">
           <label>Mode</label>
-          <select
-            className="neo-select"
-            value={mode}
-            onChange={(e) => setMode(e.target.value as SpendMode)}
-          >
-            <option value="EBL">EBL</option>
-            <option value="bKash">bKash</option>
+          <select className="neo-select" value={mode} onChange={(e) => setMode(e.target.value as SpendMode)}>
+            {modes.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
 
         <div className="neo-input-group">
           <label>Amount</label>
-          <input
-            className="neo-input"
-            type="number"
-            min="0"
-            step="1"
-            placeholder="e.g. 500"
-            value={amount}
-            onChange={(e) => setAmount(sanitizeNumberInput(e.target.value))}
-          />
+          <input className="neo-input" type="number" min="0" step="1" placeholder="e.g. 500" value={amount} onChange={(e) => setAmount(sanitizeNumberInput(e.target.value))} />
         </div>
 
         <div className="neo-input-group">
           <label>Title</label>
-          <input
-            className="neo-input"
-            placeholder="e.g. sandwich"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void onSubmit();
-            }}
-          />
+          <input className="neo-input" placeholder="e.g. sandwich" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void onSubmit(); }} />
         </div>
       </div>
 
-      <button
-        className="neo-btn full"
-        onClick={() => void onSubmit()}
-        disabled={!canSubmit}
-      >
-        {busy ? "SAVING..." : "SAVE EXPENSE"}
-      </button>
+      <button className="neo-btn full" onClick={() => void onSubmit()} disabled={!canSubmit}>{busy ? "SAVING..." : "SAVE EXPENSE"}</button>
     </div>
   );
 }
 
-function DayGroup({ uid, date, list, total }: { uid: string; date: string; list: Expense[]; total: number; }) {
+function DayGroup({ uid, date, list, total, modes }: { uid: string; date: string; list: Expense[]; total: number; modes: SpendModeDef[]; }) {
   return (
     <div className="expense-group">
       <div className="group-header">
@@ -277,16 +311,16 @@ function DayGroup({ uid, date, list, total }: { uid: string; date: string; list:
       </div>
       <div>
         {list.map((it) => (
-          <ExpenseRow key={it.id} uid={uid} it={it} />
+          <ExpenseRow key={it.id} uid={uid} it={it} modes={modes} />
         ))}
       </div>
     </div>
   );
 }
 
-function ExpenseRow({ uid, it }: { uid: string; it: Expense }) {
+function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: SpendModeDef[]; }) {
   const [editing, setEditing] = useState(false);
-  const [breakingDown, setBreakingDown] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   
   // Edit State
   const [title, setTitle] = useState(it.title);
@@ -296,12 +330,12 @@ function ExpenseRow({ uid, it }: { uid: string; it: Expense }) {
   // Breakdown State
   const [bdTitle, setBdTitle] = useState("");
   const [bdAmount, setBdAmount] = useState("");
-  
   const [busy, setBusy] = useState(false);
 
   const changed = title.trim() !== it.title || Number(amount) !== it.amount || mode !== it.mode;
-
   const currentBreakdownTotal = (it.subItems || []).reduce((acc, sub) => acc + sub.amount, 0);
+
+  const modeDef = modes.find(m => m.id === it.mode) || { id: it.mode, name: it.mode, color: '#e5e5e5' };
 
   async function onSaveEdit() {
     const n = Number(amount);
@@ -328,7 +362,6 @@ function ExpenseRow({ uid, it }: { uid: string; it: Expense }) {
     const n = Number(bdAmount);
     if (!Number.isFinite(n) || n <= 0 || bdTitle.trim().length === 0) return;
     
-    // Validate we don't exceed the parent amount
     if (currentBreakdownTotal + n > it.amount) {
       alert("Breakdown amount exceeds the parent expense total!");
       return;
@@ -341,7 +374,6 @@ function ExpenseRow({ uid, it }: { uid: string; it: Expense }) {
       await updateExpense(uid, it.id, { subItems: nextSubs });
       setBdTitle("");
       setBdAmount("");
-      setBreakingDown(false);
     } catch (e: any) {
       alert("Breakdown failed to save via Firebase: " + e.message);
     } finally {
@@ -365,8 +397,7 @@ function ExpenseRow({ uid, it }: { uid: string; it: Expense }) {
          <div className="edit-form-grid">
             <input className="neo-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
             <select className="neo-select" value={mode} onChange={(e) => setMode(e.target.value as SpendMode)}>
-              <option value="EBL">EBL</option>
-              <option value="bKash">bKash</option>
+              {modes.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
             <input className="neo-input" type="number" min="0" value={amount} onChange={(e) => setAmount(sanitizeNumberInput(e.target.value))} placeholder="Amount" />
          </div>
@@ -384,24 +415,22 @@ function ExpenseRow({ uid, it }: { uid: string; it: Expense }) {
         <div className="expense-info">
           <div className="title">{it.title}</div>
           <div className="expense-amount-area">
-            <span className={`expense-mode ${it.mode}`}>{it.mode}</span>
+            <span className="expense-mode" style={{ background: modeDef.color }}>{modeDef.name}</span>
             <span className="expense-amount">{fmtMoney(it.amount)}</span>
           </div>
         </div>
         <div className="expense-actions">
-          <button className="action-btn breakdown-btn" onClick={() => setBreakingDown(!breakingDown)} disabled={busy} title="Breakdown this Expense">SPLIT</button>
+          <button className={`action-btn breakdown-btn ${isExpanded ? 'active' : ''}`} onClick={() => setIsExpanded(!isExpanded)} disabled={busy} title="Toggle Breakdown">SPLIT</button>
           <button className="action-btn" onClick={() => setEditing(true)} disabled={busy}>EDIT</button>
           <button className="action-btn del" onClick={() => void onDelete()} disabled={busy}>DEL</button>
         </div>
       </div>
 
-      {/* Breakdown UI */}
-      {(it.subItems && it.subItems.length > 0 || breakingDown) && (
+      {isExpanded && (
         <div className="breakdown-container">
           <div className="breakdown-tree-line"></div>
           <div className="breakdown-content">
             
-            {/* Existing Sub Items */}
             {it.subItems && it.subItems.map((sub) => (
               <div key={sub.id} className="sub-item">
                 <div className="sub-info">
@@ -412,14 +441,11 @@ function ExpenseRow({ uid, it }: { uid: string; it: Expense }) {
               </div>
             ))}
 
-            {/* Breakdown Form */}
-            {breakingDown && (
-              <div className="sub-item-form">
-                 <input className="neo-input small" placeholder="Sub-item" value={bdTitle} onChange={(e) => setBdTitle(e.target.value)} />
-                 <input className="neo-input small" type="number" min="0" placeholder="Amt" value={bdAmount} onChange={(e) => setBdAmount(sanitizeNumberInput(e.target.value))} />
-                 <button className="action-btn" onClick={() => void onSaveBreakdown()} disabled={busy || !bdTitle || !bdAmount}>ADD</button>
-              </div>
-            )}
+            <div className="sub-item-form">
+               <input className="neo-input small" placeholder="Sub-item" value={bdTitle} onChange={(e) => setBdTitle(e.target.value)} />
+               <input className="neo-input small" type="number" min="0" placeholder="Amt" value={bdAmount} onChange={(e) => setBdAmount(sanitizeNumberInput(e.target.value))} />
+               <button className="action-btn" onClick={() => void onSaveBreakdown()} disabled={busy || !bdTitle || !bdAmount}>ADD</button>
+            </div>
             
             {(it.subItems && it.subItems.length > 0) && (
                <div className="sub-item-summary">Remaining: {fmtMoney(it.amount - currentBreakdownTotal)}</div>

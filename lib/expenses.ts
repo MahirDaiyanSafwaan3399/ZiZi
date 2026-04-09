@@ -10,12 +10,23 @@ import {
   query,
   serverTimestamp,
   updateDoc,
+  setDoc,
   type FirestoreError,
 } from "firebase/firestore";
 import { useEffect, useMemo, useState } from "react";
 import { firestore } from "@/lib/firebase";
 
-export type SpendMode = "EBL" | "bKash";
+export type SpendMode = string;
+
+export type SpendModeDef = {
+  id: string;   // The internal machine name
+  name: string; // The display name
+  color: string; // Hex color code
+};
+
+export type UserSettings = {
+  modes: SpendModeDef[];
+};
 
 export type ExpenseSubItem = {
   id: string;
@@ -114,5 +125,33 @@ export async function updateExpense(
 export async function deleteExpense(uid: string, id: string) {
   const ref = doc(firestore, "users", uid, "expenses", id);
   await deleteDoc(ref);
+}
+
+export function useUserSettings(uid: string) {
+  const [settings, setSettings] = useState<UserSettings>({
+    modes: [
+      { id: "EBL", name: "EBL", color: "#dca318" },
+      { id: "bKash", name: "bKash", color: "#f34b7d" },
+    ],
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const ref = doc(firestore, "users", uid, "settings", "preferences");
+    const unsub = onSnapshot(ref, (snap) => {
+      if (snap.exists() && snap.data().modes) {
+        setSettings(snap.data() as UserSettings);
+      }
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [uid]);
+
+  return { settings, loading };
+}
+
+export async function saveUserSettings(uid: string, settings: UserSettings) {
+  const ref = doc(firestore, "users", uid, "settings", "preferences");
+  await setDoc(ref, settings, { merge: true });
 }
 
