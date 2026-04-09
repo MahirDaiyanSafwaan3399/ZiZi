@@ -20,7 +20,7 @@
   padding: 0;
 }
 
-html, body { height: 100vh; width: 100vw; overflow: hidden; }
+html, body { height: 100%; width: 100%; overflow: hidden; }
 
 body {
   font-family: var(--font-outfit), sans-serif;
@@ -28,8 +28,6 @@ body {
   background-image: radial-gradient(var(--dot-color) 1.5px, transparent 1.5px);
   background-size: 20px 20px;
   color: var(--text-main);
-  display: flex;
-  justify-content: center;
 }
 
 /* Clean, Invisible-track Scrollbars to prevent UI collision */
@@ -40,7 +38,8 @@ body {
 /* Layout Wrapper */
 .layout-wrapper {
   width: 100%; max-width: 1400px;
-  height: 100vh; padding: 24px;
+  margin: 0 auto;
+  height: 100dvh; padding: 24px;
   display: flex; flex-direction: column;
 }
 
@@ -164,12 +163,12 @@ body {
   .tab-btn:not(:last-child) { border-right: var(--border-thick); }
   .tab-btn.active { background: var(--accent-primary); color: #fff; }
 
-  .dashboard-grid { grid-template-columns: 1fr; grid-template-rows: auto 1fr; gap: 16px; }
+  .dashboard-grid { display: flex; flex-direction: column; gap: 0; }
   .hide-on-mobile { display: none !important; }
   
   /* Shrink outer margins to maximize finger space */
   .neo-card { padding: 16px; box-shadow: 4px 4px 0px 0px var(--border-color); }
-  .sidebar, .main-content { padding: 0; height: auto; }
+  .sidebar, .main-content { padding: 0; height: 100%; flex: 1; overflow-y: auto; }
   .ledger-scroll-area { padding-right: 4px; }
   
   .card-title { font-size: 20px; margin-bottom: 12px; border-bottom-width: 3px; }
