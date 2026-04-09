@@ -95,6 +95,8 @@ function Dashboard({ uid }: { uid: string }) {
   const { items, loading, error } = useExpenses(uid);
   const groups = useMemo(() => groupByDate(items), [items]);
   
+  const [mobileTab, setMobileTab] = useState<"ledger" | "add">("ledger");
+  
   const byMode = useMemo(
     () =>
       items.reduce(
@@ -109,9 +111,23 @@ function Dashboard({ uid }: { uid: string }) {
 
   return (
     <div className="dashboard-grid">
-      {/* Sidebar: Add form and small stats */}
-      <div className="sidebar">
-        <AddExpenseCard uid={uid} />
+      <div className="mobile-tab-nav">
+        <button 
+          className={`tab-btn ${mobileTab === "ledger" ? "active" : ""}`}
+          onClick={() => setMobileTab("ledger")}
+        >
+          🧾 EXPENSE
+        </button>
+        <button 
+          className={`tab-btn ${mobileTab === "add" ? "active" : ""}`}
+          onClick={() => setMobileTab("add")}
+        >
+          🔥 ADD
+        </button>
+      </div>
+
+      <div className={`sidebar ${mobileTab === "ledger" ? "hide-on-mobile" : ""}`}>
+        <AddExpenseCard uid={uid} onAdded={() => setMobileTab("ledger")} />
 
         <div className="stats-grid">
           <div className="stat-box ebl">
@@ -125,10 +141,9 @@ function Dashboard({ uid }: { uid: string }) {
         </div>
       </div>
 
-      {/* Main Content: Ledger */}
-      <div className="main-content">
+      <div className={`main-content ${mobileTab === "add" ? "hide-on-mobile" : ""}`}>
         <div className="neo-card">
-          <h2 className="card-title">🧾 Daily Ledger</h2>
+          <h2 className="card-title">🧾 Daily Expense</h2>
           
           {loading && <div style={{fontWeight: 900, fontSize: "24px"}}>SYNCING DATA...</div>}
           {error && <div style={{color: "red", fontWeight: 900}}>{error.message}</div>}
@@ -148,7 +163,7 @@ function Dashboard({ uid }: { uid: string }) {
   );
 }
 
-function AddExpenseCard({ uid }: { uid: string }) {
+function AddExpenseCard({ uid, onAdded }: { uid: string; onAdded?: () => void }) {
   const [date, setDate] = useState(todayLocalIsoDate());
   const [mode, setMode] = useState<SpendMode>("EBL");
   const [title, setTitle] = useState("");
@@ -175,6 +190,7 @@ function AddExpenseCard({ uid }: { uid: string }) {
       });
       setTitle("");
       setAmount("");
+      if (onAdded) onAdded();
     } finally {
       setBusy(false);
     }
