@@ -32,6 +32,7 @@ export type ExpenseSubItem = {
   id: string;
   title: string;
   amount: number;
+  time?: string; // e.g., "04:54 PM"
 };
 
 export type Expense = {
@@ -129,10 +130,7 @@ export async function deleteExpense(uid: string, id: string) {
 
 export function useUserSettings(uid: string) {
   const [settings, setSettings] = useState<UserSettings>({
-    modes: [
-      { id: "EBL", name: "EBL", color: "#dca318" },
-      { id: "bKash", name: "bKash", color: "#f34b7d" },
-    ],
+    modes: [],
   });
   const [loading, setLoading] = useState(true);
 

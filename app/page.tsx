@@ -15,6 +15,7 @@ import {
   type SpendModeDef,
   type UserSettings,
 } from "@/lib/expenses";
+import { NeoDatePicker } from "@/components/NeoDatePicker";
 
 function todayLocalIsoDate() {
   const d = new Date();
@@ -224,6 +225,7 @@ function SourcesManager({ uid, settings }: { uid: string, settings: UserSettings
   const [color, setColor] = useState(presetColors[0]);
   const [busy, setBusy] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [deleteConfirmMode, setDeleteConfirmMode] = useState<SpendModeDef | null>(null);
 
   const canSubmit = name.trim().length > 0 && !busy;
 
@@ -255,18 +257,24 @@ function SourcesManager({ uid, settings }: { uid: string, settings: UserSettings
     }
   }
 
-  async function onDelete(modeId: string) {
+  function attemptDelete(m: SpendModeDef) {
     if (settings.modes.length <= 1) {
       alert("You must have at least one source.");
       return;
     }
+    setDeleteConfirmMode(m);
+  }
+
+  async function performDelete() {
+    if (!deleteConfirmMode) return;
     setBusy(true);
     try {
-      const newModes = settings.modes.filter(m => m.id !== modeId);
+      const newModes = settings.modes.filter(m => m.id !== deleteConfirmMode.id);
       await saveUserSettings(uid, { modes: newModes });
-      if (editId === modeId) {
+      if (editId === deleteConfirmMode.id) {
         cancelEdit();
       }
+      setDeleteConfirmMode(null);
     } finally {
       setBusy(false);
     }
@@ -333,11 +341,38 @@ function SourcesManager({ uid, settings }: { uid: string, settings: UserSettings
             <span style={{ fontWeight: 900, color: '#0a0a0a', fontSize: '16px' }}>{m.name.toUpperCase()}</span>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button className="action-btn small" onClick={() => startEdit(m)} disabled={busy} style={{ boxShadow: 'none', background: '#fff', color: 'var(--text-main)' }}>EDIT</button>
-              <button className="action-btn del small" onClick={() => void onDelete(m.id)} disabled={busy} style={{ boxShadow: 'none', background: 'var(--text-main)', color: '#fff' }}>DEL</button>
+              <button className="action-btn del small" onClick={() => attemptDelete(m)} disabled={busy} style={{ boxShadow: 'none', background: 'var(--text-main)', color: '#fff' }}>DEL</button>
             </div>
           </div>
         ))}
       </div>
+
+      {deleteConfirmMode && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <h2 className="card-title">DESTROY SOURCE?</h2>
+            <p className="modal-text">
+              ARE YOU SURE YOU WANT TO DELETE <span className="highlight-text">{deleteConfirmMode.name.toUpperCase()}</span>? IT WILL BE ERASED FOREVER.
+            </p>
+            <div className="modal-actions">
+              <button
+                className="neo-btn danger-btn"
+                onClick={() => void performDelete()}
+                disabled={busy}
+              >
+                YES, DESTROY
+              </button>
+              <button
+                className="neo-btn cancel-btn"
+                onClick={() => setDeleteConfirmMode(null)}
+                disabled={busy}
+              >
+                NEVERMIND
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -398,6 +433,15 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
     }
   }
 
+  if (modes.length === 0) {
+    return (
+      <div className="neo-card highlight" style={{ textAlign: "center", padding: "32px 16px" }}>
+        <h2 className="card-title">NO SOURCES FOUND</h2>
+        <p style={{ marginTop: "16px", fontWeight: 800 }}>Please navigate to the MODES tab and create a spending source before adding expenses.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="neo-card highlight">
       <h2 className="card-title">NEW EXPENSE</h2>
@@ -405,7 +449,7 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
       <div className="compact-form-grid">
         <div className="neo-input-group">
           <label>Date</label>
-          <input className="neo-input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <NeoDatePicker value={date} onChange={setDate} />
         </div>
 
         <div className="neo-input-group">
@@ -514,7 +558,15 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
 
     setBusy(true);
     try {
-      const newItem: ExpenseSubItem = { id: Date.now().toString(), title: bdTitle.trim(), amount: n };
+      const now = new Date();
+      let hours = now.getHours();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12; // the hour '0' should be '12'
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const timeStr = `${hours}:${minutes} ${ampm}`;
+
+      const newItem: ExpenseSubItem = { id: Date.now().toString(), title: bdTitle.trim(), amount: n, time: timeStr };
       const nextSubs = [...(it.subItems || []), newItem];
       await updateExpense(uid, it.id, { subItems: nextSubs });
       setBdTitle("");
@@ -605,7 +657,10 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
               <div key={sub.id} className="sub-item">
                 <div className="sub-info">
                   <span className="sub-title">{sub.title}</span>
-                  <span className="sub-amount">{fmtMoney(sub.amount)}</span>
+                  <div className="sub-amount-area">
+                     <span className="sub-amount">{fmtMoney(sub.amount)}</span>
+                     {sub.time && <span className="sub-time">{sub.time}</span>}
+                  </div>
                 </div>
                 <button className="action-btn del small" onClick={() => void onDeleteBreakdown(sub.id)} disabled={busy}>✕</button>
               </div>
