@@ -136,6 +136,7 @@ body {
 .expense-info .title { font-size: 18px; font-weight: 900; margin-bottom: 8px; text-transform: uppercase; }
 .expense-amount-area { display: flex; align-items: center; gap: 10px; }
 .expense-mode { font-size: 12px; font-weight: 900; border: 2px solid var(--border-color); padding: 4px 8px; text-transform: uppercase; color: var(--text-main); }
+.expense-sticker { font-family: var(--font-mono); font-size: 11px; font-weight: 900; background: #a3e635; color: var(--text-main); padding: 4px 8px; text-transform: uppercase; border: 2px dashed var(--border-color); box-shadow: 2px 2px 0px 0px var(--border-color); }
 .expense-amount { font-family: var(--font-mono); font-weight: 900; font-size: 18px; }
 .expense-actions { display: flex; gap: 8px; }
 .action-btn { background: var(--card-bg); border: 2px solid var(--border-color); padding: 8px 12px; font-size: 13px; font-weight: 900; cursor: pointer; text-transform: uppercase; transition: background 0.1s;}

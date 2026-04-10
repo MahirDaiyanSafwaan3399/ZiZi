@@ -43,6 +43,7 @@ export type Expense = {
   title: string;
   createdAtMs?: number;
   subItems?: ExpenseSubItem[];
+  sticker?: string;
 };
 
 type ExpenseDoc = {
@@ -53,6 +54,7 @@ type ExpenseDoc = {
   createdAt: unknown;
   updatedAt?: unknown;
   subItems?: ExpenseSubItem[];
+  sticker?: string;
 };
 
 function userExpensesCol(uid: string) {
@@ -86,6 +88,7 @@ export function useExpenses(uid: string) {
             title: data.title,
             createdAtMs,
             subItems: data.subItems,
+            sticker: data.sticker,
           });
         });
         setItems(next);
@@ -110,6 +113,7 @@ export async function addExpense(uid: string, input: Omit<Expense, "id" | "creat
     title: input.title,
     createdAt: serverTimestamp(),
     ...(input.subItems && { subItems: input.subItems }),
+    ...(input.sticker && { sticker: input.sticker }),
   };
   await addDoc(userExpensesCol(uid), payload);
 }
@@ -117,7 +121,7 @@ export async function addExpense(uid: string, input: Omit<Expense, "id" | "creat
 export async function updateExpense(
   uid: string,
   id: string,
-  input: Partial<Pick<Expense, "date" | "amount" | "mode" | "title" | "subItems">>,
+  input: Partial<Pick<Expense, "date" | "amount" | "mode" | "title" | "subItems" | "sticker">>,
 ) {
   const ref = doc(firestore, "users", uid, "expenses", id);
   await updateDoc(ref, { ...input, updatedAt: serverTimestamp() });

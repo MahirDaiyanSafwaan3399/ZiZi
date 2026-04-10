@@ -513,13 +513,14 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
   const [title, setTitle] = useState(it.title);
   const [amount, setAmount] = useState(String(it.amount));
   const [mode, setMode] = useState<SpendMode>(it.mode);
+  const [sticker, setSticker] = useState(it.sticker || "");
 
   // Breakdown State
   const [bdTitle, setBdTitle] = useState("");
   const [bdAmount, setBdAmount] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const changed = title.trim() !== it.title || Number(amount) !== it.amount || mode !== it.mode;
+  const changed = title.trim() !== it.title || Number(amount) !== it.amount || mode !== it.mode || sticker.trim() !== (it.sticker || "");
   const currentBreakdownTotal = (it.subItems || []).reduce((acc, sub) => acc + sub.amount, 0);
 
   const modeDef = modes.find(m => m.id === it.mode) || { id: it.mode, name: it.mode, color: '#e5e5e5' };
@@ -529,7 +530,7 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
     if (!Number.isFinite(n) || n <= 0) return;
     setBusy(true);
     try {
-      await updateExpense(uid, it.id, { title: title.trim(), amount: n, mode });
+      await updateExpense(uid, it.id, { title: title.trim(), amount: n, mode, sticker: sticker.trim() });
       setEditing(false);
       triggerToast("EDIT SAVED. YOU'RE STILL BROKE THOUGH.", "success");
     } finally {
@@ -595,10 +596,11 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
           <input className="neo-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
           <SourceSelect modes={modes} value={mode} onChange={(v) => setMode(v as SpendMode)} />
           <input className="neo-input" type="number" min="0" value={amount} onChange={(e) => setAmount(sanitizeNumberInput(e.target.value))} placeholder="Amount" />
+          <input className="neo-input" value={sticker} onChange={(e) => setSticker(e.target.value)} placeholder="Sticker (e.g. OWED)" />
         </div>
         <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
           <button className="action-btn" onClick={() => void onSaveEdit()} disabled={busy || !changed}>SAVE</button>
-          <button className="action-btn del" onClick={() => { setEditing(false); setTitle(it.title); setAmount(String(it.amount)); setMode(it.mode); }} disabled={busy}>CANCEL</button>
+          <button className="action-btn del" onClick={() => { setEditing(false); setTitle(it.title); setAmount(String(it.amount)); setMode(it.mode); setSticker(it.sticker || ""); }} disabled={busy}>CANCEL</button>
         </div>
       </div>
     );
@@ -611,6 +613,7 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
           <div className="title">{it.title}</div>
           <div className="expense-amount-area">
             <span className="expense-mode" style={{ background: modeDef.color }}>{modeDef.name}</span>
+            {it.sticker && <span className="expense-sticker">{it.sticker}</span>}
             <span className="expense-amount">{fmtMoney(it.amount)}</span>
           </div>
         </div>
