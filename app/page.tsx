@@ -658,8 +658,8 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
                 <div className="sub-info">
                   <span className="sub-title">{sub.title}</span>
                   <div className="sub-amount-area">
-                     <span className="sub-amount">{fmtMoney(sub.amount)}</span>
-                     {sub.time && <span className="sub-time">{sub.time}</span>}
+                    <span className="sub-amount">{fmtMoney(sub.amount)}</span>
+                    {sub.time && <span className="sub-time">{sub.time}</span>}
                   </div>
                 </div>
                 <button className="action-btn del small" onClick={() => void onDeleteBreakdown(sub.id)} disabled={busy}>✕</button>
