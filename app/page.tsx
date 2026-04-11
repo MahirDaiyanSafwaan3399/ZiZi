@@ -16,6 +16,7 @@ import {
   type UserSettings,
 } from "@/lib/expenses";
 import { NeoDatePicker } from "@/components/NeoDatePicker";
+import { SlideToBurn } from "@/components/SlideToBurn";
 
 function todayLocalIsoDate() {
   const d = new Date();
@@ -415,6 +416,7 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
     mode.length > 0 &&
     !busy;
 
+
   async function onSubmit() {
     if (!canSubmit) return;
     setBusy(true);
@@ -483,7 +485,12 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
         🚨 {roast}
       </div>
 
-      <button className="neo-btn full" onClick={() => void onSubmit()} disabled={!canSubmit}>{btnText}</button>
+      <SlideToBurn 
+        onComplete={() => void onSubmit()} 
+        disabled={!canSubmit || busy} 
+        text={btnText} 
+        isIntense={parsedAmount > 500} 
+      />
     </div>
   );
 }
