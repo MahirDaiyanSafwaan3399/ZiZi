@@ -231,7 +231,7 @@ function SourcesManager({ uid, settings }: { uid: string, settings: UserSettings
   const presetColors = [
     "#4f46e5", "#dca318", "#f34b7d", "#ea580c",
     "#16a34a", "#0bc99d", "#9333ea", "#0a0a0a",
-    "#3b82f6", "#eab308"
+    "#3b82f6", "#77b3f8ff"
   ];
 
   const [name, setName] = useState("");

@@ -95,9 +95,26 @@ export function SlideToBurn({
     setIsDragging(true);
   };
 
+  const handleTrackClick = () => {
+    if (disabled || success || isDragging) return;
+    
+    if (trackRef.current && thumbRef.current) {
+      const trackWidth = trackRef.current.offsetWidth;
+      const thumbWidth = thumbRef.current.offsetWidth;
+      const maxOffset = trackWidth - thumbWidth;
+      
+      setDragOffset(maxOffset);
+      setSuccess(true);
+      setTimeout(() => {
+        onComplete();
+      }, 300);
+    }
+  };
+
   return (
     <div
       ref={trackRef}
+      onClick={handleTrackClick}
       style={{
         position: "relative",
         width: "100%",
@@ -151,7 +168,7 @@ export function SlideToBurn({
             textOverflow: "ellipsis",
           }}
         >
-          {disabled ? text : `${text} >>`}
+          {disabled ? text : `>>> ${text} >>>`}
         </span>
       </div>
 
@@ -196,7 +213,16 @@ export function SlideToBurn({
           touchAction: "none",
         }}
       >
-        <div style={{ color: "#fff", fontWeight: 900, fontSize: "20px", pointerEvents: "none" }}>{">>"}</div>
+        <div style={{ 
+          color: "#fff", 
+          fontWeight: 900, 
+          fontSize: "20px", 
+          pointerEvents: "none", 
+          letterSpacing: "-2px",
+          animation: isDragging ? "none" : "arrowPulse 1.2s infinite ease-in-out"
+        }}>
+          {">>>>"}
+        </div>
       </div>
       
       {/* Visual burn effect that follows the thumb */}
@@ -216,5 +242,6 @@ export function SlideToBurn({
         />
       )}
     </div>
+
   );
 }

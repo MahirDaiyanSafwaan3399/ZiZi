@@ -489,3 +489,10 @@ body {
     box-shadow: none;
   }
 }
+
+@keyframes arrowPulse {
+  0% { transform: translateX(0); opacity: 1; }
+  50% { transform: translateX(8px); opacity: 0.6; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
