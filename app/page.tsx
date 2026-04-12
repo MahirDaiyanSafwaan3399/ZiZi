@@ -147,7 +147,10 @@ function Dashboard({ uid }: { uid: string }) {
 
   const totalBySource = useMemo(() => {
     return items.reduce((acc, x) => {
-      acc[x.mode] = (acc[x.mode] || 0) + x.amount;
+      const modeKey = x.mode?.toUpperCase();
+      if (modeKey) {
+        acc[modeKey] = (acc[modeKey] || 0) + x.amount;
+      }
       return acc;
     }, {} as Record<string, number>);
   }, [items]);
@@ -174,7 +177,7 @@ function Dashboard({ uid }: { uid: string }) {
               {modes.map(m => (
                 <div key={m.id} className="stat-box" style={{ background: m.color, color: 'var(--text-main)' }}>
                   <div className="stat-label">{m.name.toUpperCase()} TOTAL</div>
-                  <div className="stat-value">{fmtMoney(totalBySource[m.id] || 0)}</div>
+                  <div className="stat-value">{fmtMoney(totalBySource[m.id.toUpperCase()] || 0)}</div>
                 </div>
               ))}
             </div>
@@ -250,7 +253,7 @@ function SourcesManager({ uid, settings }: { uid: string, settings: UserSettings
         newModes = newModes.map(m => m.id === editId ? { ...m, name: trimmedName, color } : m);
       } else {
         const id = trimmedName.toUpperCase();
-        if (newModes.some(m => m.id === id)) {
+        if (newModes.some(m => m.id.toUpperCase() === id)) {
           alert("Source already exists.");
           setBusy(false);
           return;
@@ -554,7 +557,7 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
   const changed = title.trim() !== it.title || Number(amount) !== it.amount || mode !== it.mode || sticker.trim() !== (it.sticker || "");
   const currentBreakdownTotal = (it.subItems || []).reduce((acc, sub) => acc + sub.amount, 0);
 
-  const modeDef = modes.find(m => m.id === it.mode) || { id: it.mode, name: it.mode, color: '#e5e5e5' };
+  const modeDef = modes.find(m => m.id.toUpperCase() === it.mode?.toUpperCase()) || { id: it.mode, name: it.mode, color: '#e5e5e5' };
 
   async function onSaveEdit() {
     const n = Number(amount);
@@ -718,7 +721,7 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
 
 function SourceSelect({ value, onChange, modes, className = "" }: { value: string, onChange: (val: string) => void, modes: SpendModeDef[], className?: string }) {
   const [open, setOpen] = useState(false);
-  const selectedDef = modes.find(m => m.id === value) || modes[0];
+  const selectedDef = modes.find(m => m.id.toUpperCase() === value?.toUpperCase()) || modes[0];
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
