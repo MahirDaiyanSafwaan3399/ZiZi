@@ -152,6 +152,9 @@ function Dashboard({ uid }: { uid: string }) {
     }, {} as Record<string, number>);
   }, [items]);
 
+  const totalAllTime = useMemo(() => items.reduce((s, x) => s + x.amount, 0), [items]);
+  const avgPerDay = useMemo(() => (groups.length > 0 ? totalAllTime / groups.length : 0), [totalAllTime, groups.length]);
+
   if (settingsLoading) return <div><h1 className="splash-title">SYNCING SETTINGS...</h1></div>;
 
   return (
@@ -190,7 +193,13 @@ function Dashboard({ uid }: { uid: string }) {
 
       <div className={`main-content ${mobileTab === "add" || mobileTab === "sources" ? "hide-on-mobile" : ""}`}>
         <div className="neo-card ledger-card">
-          <h2 className="card-title">DAILY EXPENSE</h2>
+          <div className="ledger-title-area">
+            <h2 className="card-title">DAILY EXPENSE</h2>
+            <div className="global-avg-badge">
+              <span className="label">ALL-TIME DAILY AVG</span>
+              <span className="value">{fmtMoney(avgPerDay)}</span>
+            </div>
+          </div>
 
           {loading && <div style={{ fontWeight: 900, fontSize: "24px" }}>SYNCING DATA...</div>}
           {error && <div style={{ color: "red", fontWeight: 900 }}>{error.message}</div>}
@@ -201,7 +210,7 @@ function Dashboard({ uid }: { uid: string }) {
 
           <div className="ledger-scroll-area">
             {groups.map((g) => (
-              <DayGroup key={g.date} uid={uid} date={g.date} list={g.list} total={g.total} modes={modes} />
+              <DayGroup key={g.date} uid={uid} date={g.date} list={g.list} total={g.total} modes={modes} globalAvg={avgPerDay} />
             ))}
           </div>
         </div>
@@ -465,8 +474,23 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
         </div>
 
         <div className="neo-input-group">
-          <label>Title</label>
-          <input className="neo-input" placeholder="e.g. sandwich" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void onSubmit(); }} />
+          <label style={{ display: 'flex', justifyContent: 'space-between' }}>
+            Title 
+            <span style={{ fontSize: '10px', opacity: 0.6 }}>{title.trim().split(/\s+/).filter(Boolean).length}/5 WORDS</span>
+          </label>
+          <input 
+            className="neo-input" 
+            placeholder="e.g. sandwich" 
+            value={title} 
+            onChange={(e) => {
+              const val = e.target.value;
+              const words = val.trim().split(/\s+/).filter(Boolean);
+              if (words.length <= 5 || val.length < title.length) {
+                setTitle(val);
+              }
+            }} 
+            onKeyDown={(e) => { if (e.key === "Enter") void onSubmit(); }} 
+          />
         </div>
       </div>
 
@@ -495,7 +519,7 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
   );
 }
 
-function DayGroup({ uid, date, list, total, modes }: { uid: string; date: string; list: Expense[]; total: number; modes: SpendModeDef[]; }) {
+function DayGroup({ uid, date, list, total, modes, globalAvg }: { uid: string; date: string; list: Expense[]; total: number; modes: SpendModeDef[]; globalAvg: number }) {
   return (
     <div className="expense-group">
       <div className="group-header">
