@@ -110,13 +110,28 @@ body {
 .breakdown-tree-line { width: 4px; background: var(--border-color); margin-right: 16px; margin-left: 8px; z-index: 1; }
 .breakdown-content { flex: 1; padding: 0 0 8px 0; display: flex; flex-direction: column; gap: 10px; }
 
-.sub-item { display: flex; justify-content: space-between; align-items: center; border: 2px solid var(--border-color); padding: 10px 14px; background: #fff; box-shadow: 2px 2px 0px 0px var(--border-color); }
-.sub-info { flex: 1; display: flex; align-items: center; justify-content: space-between; margin-right: 16px; }
-.sub-title { font-size: 14px; font-weight: 900; text-transform: uppercase; color: var(--text-main); }
-.sub-amount-area { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-.sub-amount { font-family: var(--font-mono); font-weight: 900; font-size: 16px; background: var(--accent-neutral); padding: 4px 10px; border: 2px solid var(--border-color); box-shadow: 2px 2px 0px 0px var(--border-color); }
-.sub-time { font-family: var(--font-mono); font-size: 10px; font-weight: 900; color: var(--text-main); text-transform: uppercase; opacity: 0.6; }
-.sub-item-form { display: flex; gap: 8px; align-items: center; background: #fff; padding: 8px; border: 2px dashed var(--border-color); }
+.sub-item { 
+  display: flex; gap: 12px; align-items: center; justify-content: space-between; 
+  border: 2px solid var(--border-color); padding: 8px 12px; background: #fff; 
+  box-shadow: 2px 2px 0px 0px var(--border-color); 
+}
+.sub-info { flex: 1; display: flex; align-items: center; justify-content: space-between; min-width: 0; }
+.sub-title-group { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sub-title { font-size: 13px; font-weight: 900; text-transform: uppercase; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub-time { font-family: var(--font-mono); font-size: 10px; font-weight: 800; color: var(--text-main); text-transform: uppercase; opacity: 0.5; }
+.sub-amount { 
+  font-family: var(--font-mono); font-weight: 900; font-size: 15px; 
+  background: var(--accent-neutral); padding: 4px 10px; 
+  border: 2px solid var(--border-color); 
+  box-shadow: 2px 2px 0px 0px var(--border-color);
+  margin-left: 8px;
+}
+.sub-item-form { 
+  display: flex; gap: 8px; align-items: stretch; background: #fff; padding: 10px; border: 2px dashed var(--border-color); 
+}
+.sub-item-form .neo-input.small { flex: 3; }
+.sub-item-form .neo-input.small[type="number"] { flex: 1; min-width: 80px; }
+.sub-item-form .action-btn { height: 40px; padding: 0 20px; }
 .sub-item-summary { font-size: 13px; font-weight: 900; text-transform: uppercase; color: #fff; background: var(--accent-primary); align-self: flex-end; padding: 6px 12px; border: 2px solid var(--border-color); box-shadow: 2px 2px 0px 0px var(--border-color); margin-top: 4px; }
 
 .neo-input.small { padding: 8px 12px; font-size: 14px; height: 40px; box-shadow: none; border-width: 2px; }
@@ -138,10 +153,25 @@ body {
 .expense-mode { font-size: 12px; font-weight: 900; border: 2px solid var(--border-color); padding: 4px 8px; text-transform: uppercase; color: var(--text-main); }
 .expense-sticker { font-family: var(--font-mono); font-size: 11px; font-weight: 900; background: #a3e635; color: var(--text-main); padding: 4px 8px; text-transform: uppercase; border: 2px dashed var(--border-color); box-shadow: 2px 2px 0px 0px var(--border-color); }
 .expense-amount { font-family: var(--font-mono); font-weight: 900; font-size: 18px; }
-.expense-actions { display: flex; gap: 8px; }
-.action-btn { background: var(--card-bg); border: 2px solid var(--border-color); padding: 8px 12px; font-size: 13px; font-weight: 900; cursor: pointer; text-transform: uppercase; transition: background 0.1s;}
+.expense-actions { display: flex; gap: 8px; align-self: flex-start; margin-top: 4px; }
+.action-btn { 
+  background: var(--card-bg); 
+  border: 2px solid var(--border-color); 
+  padding: 0 16px; 
+  height: 44px; /* Consistent height with inputs */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px; 
+  font-weight: 900; 
+  cursor: pointer; 
+  text-transform: uppercase; 
+  transition: all 0.1s;
+}
 .action-btn:hover { background: var(--accent-neutral); }
+.action-btn:active { transform: translate(2px, 2px); }
 .action-btn.del { background: var(--text-main); color: #fff; }
+.action-btn.small { height: 36px; padding: 0 12px; font-size: 12px; }
 
 .mobile-tab-nav { display: none; }
 
@@ -195,8 +225,8 @@ body {
   .expense-item { flex-direction: column; align-items: stretch; gap: 12px; padding: 12px; margin-bottom: 0; box-shadow: 4px 4px 0px 0px var(--border-color); }
   .expense-item-container { margin-bottom: 24px; }
   .expense-info { display: flex; flex-direction: column; }
-  .expense-actions { display: flex; width: 100%; }
-  .expense-actions .action-btn { flex: 1; text-align: center; padding: 10px; } 
+  .expense-actions { display: flex; width: 100%; gap: 8px; }
+  .expense-actions .action-btn { flex: 1; text-align: center; padding: 0; height: 44px; } 
 
   /* Mobile Breakdown adjustments */
   .breakdown-container { padding-left: 10px; }
@@ -204,10 +234,12 @@ body {
   .sub-item-form { flex-direction: column; align-items: stretch; gap: 8px; background: #fff; padding: 12px; border: 2px dashed var(--border-color); }
   .sub-item-form .neo-input.small { width: 100%; height: 44px; font-size: 16px; }
   .sub-item-form .action-btn { height: 44px; font-size: 16px; }
-  .sub-item { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; }
-  .sub-info { flex: 1; margin-right: 0; margin-bottom: 0; }
-  .sub-title { font-size: 16px; }
-  .sub-item .action-btn.del { width: 44px; height: 44px; flex-shrink: 0; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; margin: 0; }
+  .sub-item { padding: 10px; gap: 10px; }
+  .sub-info { gap: 8px; }
+  .sub-title { font-size: 14px; white-space: normal; line-height: 1.2; }
+  .sub-title-group { flex: 1; }
+  .sub-amount { font-size: 14px; padding: 4px 8px; margin-left: 0; }
+  .sub-item .action-btn.del { width: 40px; height: 40px; flex-shrink: 0; padding: 0; font-size: 16px; }
 
   .stats-grid { gap: 12px; }
   .stat-box { padding: 12px; box-shadow: 2px 2px 0px 0px var(--border-color); }

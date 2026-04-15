@@ -693,11 +693,11 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
             {it.subItems && it.subItems.map((sub) => (
               <div key={sub.id} className="sub-item">
                 <div className="sub-info">
-                  <span className="sub-title">{sub.title}</span>
-                  <div className="sub-amount-area">
-                    <span className="sub-amount">{fmtMoney(sub.amount)}</span>
+                  <div className="sub-title-group">
+                    <span className="sub-title">{sub.title}</span>
                     {sub.time && <span className="sub-time">{sub.time}</span>}
                   </div>
+                  <span className="sub-amount">{fmtMoney(sub.amount)}</span>
                 </div>
                 <button className="action-btn del small" onClick={() => void onDeleteBreakdown(sub.id)} disabled={busy}>✕</button>
               </div>
