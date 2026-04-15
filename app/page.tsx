@@ -152,7 +152,11 @@ function Dashboard({ uid }: { uid: string }) {
 
   const uniqueStickers = useMemo(() => {
     const s = new Set<string>();
-    items.forEach(it => { if (it.sticker) s.add(it.sticker); });
+    items.forEach(it => {
+      (it.stickers || (it.sticker ? [it.sticker] : [])).forEach(st => {
+        if (st) s.add(st);
+      });
+    });
     return Array.from(s).sort();
   }, [items]);
 
@@ -166,11 +170,12 @@ function Dashboard({ uid }: { uid: string }) {
       const max = filters.maxAmount === "" ? Infinity : Number(filters.maxAmount);
       const matchAmount = amt >= min && amt <= max;
 
+      const itStickers = it.stickers || (it.sticker ? [it.sticker] : []);
       const matchSticker = filters.sticker === "ALL"
         ? true
         : filters.sticker === "NONE"
-          ? !it.sticker
-          : it.sticker === filters.sticker;
+          ? itStickers.length === 0
+          : itStickers.includes(filters.sticker);
 
       return matchSearch && matchSource && matchAmount && matchSticker;
     });
@@ -538,6 +543,8 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
   const [mode, setMode] = useState<SpendMode>(modes[0]?.id || "");
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState<string>("");
+  const [stickers, setStickers] = useState<string[]>([]);
+  const [newSticker, setNewSticker] = useState("");
   const [busy, setBusy] = useState(false);
   const parsedAmount = Number(amount);
 
@@ -562,9 +569,13 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
         mode,
         title: title.trim(),
         amount: parsedAmount,
+        stickers: stickers,
+        sticker: stickers[0] || "",
       });
       setTitle("");
       setAmount("");
+      setStickers([]);
+      setNewSticker("");
       if (onAdded) onAdded();
     } finally {
       setBusy(false);
@@ -619,6 +630,55 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
             onKeyDown={(e) => { if (e.key === "Enter") void onSubmit(); }}
           />
         </div>
+
+        <div className="neo-input-group" style={{ gridColumn: 'span 2' }}>
+          <label>Stickers / Tags</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "8px" }}>
+            {stickers.map((st, idx) => (
+              <div 
+                key={idx} 
+                className="expense-sticker"
+                style={{ 
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                {st}
+                <span 
+                  onClick={() => setStickers(prev => prev.filter((_, i) => i !== idx))}
+                  style={{ opacity: 0.6, fontSize: '14px', fontWeight: 900, cursor: 'pointer' }}
+                >✕</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input 
+              className="neo-input" 
+              value={newSticker} 
+              onChange={(e) => setNewSticker(e.target.value)} 
+              placeholder="e.g. LUNCH" 
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newSticker.trim()) {
+                  if (!stickers.includes(newSticker.trim())) {
+                    setStickers(prev => [...prev, newSticker.trim()]);
+                  }
+                  setNewSticker("");
+                }
+              }}
+            />
+            <button 
+              className="action-btn" 
+              style={{ flexShrink: 0 }}
+              onClick={() => {
+                if (newSticker.trim() && !stickers.includes(newSticker.trim())) {
+                  setStickers(prev => [...prev, newSticker.trim()]);
+                  setNewSticker("");
+                }
+              }}
+            >ADD</button>
+          </div>
+        </div>
       </div>
 
       <div style={{
@@ -672,23 +732,29 @@ function ExpenseRow({ uid, it, modes, settings }: { uid: string; it: Expense; mo
   const [title, setTitle] = useState(it.title);
   const [amount, setAmount] = useState(String(it.amount));
   const [mode, setMode] = useState<SpendMode>(it.mode);
-  const [sticker, setSticker] = useState(it.sticker || "");
-  const [stickerColor, setStickerColor] = useState(settings.stickerColors?.[it.sticker || ""] || "#a3e635");
+  const [stickers, setStickers] = useState<string[]>(it.stickers || (it.sticker ? [it.sticker] : []));
+  const [newSticker, setNewSticker] = useState("");
+  const [activeSticker, setActiveSticker] = useState<string>("");
+  const [stickerColor, setStickerColor] = useState("#a3e635");
+
 
   // Breakdown State
   const [bdTitle, setBdTitle] = useState("");
   const [bdAmount, setBdAmount] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // Update sticker color state when sticker name changes if it exists in settings
+  // Update sticker color state when active sticker name changes
   useEffect(() => {
-    if (settings.stickerColors?.[sticker]) {
-      setStickerColor(settings.stickerColors[sticker]);
+    if (activeSticker && settings.stickerColors?.[activeSticker]) {
+      setStickerColor(settings.stickerColors[activeSticker]);
+    } else if (activeSticker) {
+      setStickerColor("#a3e635");
     }
-  }, [sticker, settings.stickerColors]);
+  }, [activeSticker, settings.stickerColors]);
 
-  const colorChanged = stickerColor !== (settings.stickerColors?.[it.sticker || ""] || "#a3e635");
-  const changed = title.trim() !== it.title || Number(amount) !== it.amount || mode !== it.mode || sticker.trim() !== (it.sticker || "") || colorChanged;
+  const stickersChanged = JSON.stringify(stickers) !== JSON.stringify(it.stickers || (it.sticker ? [it.sticker] : []));
+  const anyStickerColorChanged = stickers.some(st => settings.stickerColors?.[st] && (st === activeSticker ? stickerColor !== settings.stickerColors[st] : false));
+  const changed = title.trim() !== it.title || Number(amount) !== it.amount || mode !== it.mode || stickersChanged || anyStickerColorChanged;
   const currentBreakdownTotal = (it.subItems || []).reduce((acc, sub) => acc + sub.amount, 0);
 
   const modeDef = modes.find(m => m.id.toUpperCase() === it.mode?.toUpperCase()) || { id: it.mode, name: it.mode, color: '#e5e5e5' };
@@ -698,11 +764,17 @@ function ExpenseRow({ uid, it, modes, settings }: { uid: string; it: Expense; mo
     if (!Number.isFinite(n) || n <= 0) return;
     setBusy(true);
     try {
-      await updateExpense(uid, it.id, { title: title.trim(), amount: n, mode, sticker: sticker.trim() });
+      await updateExpense(uid, it.id, { 
+        title: title.trim(), 
+        amount: n, 
+        mode, 
+        stickers: stickers.filter(s => s.trim() !== ""),
+        sticker: stickers[0] || "" // for backward compatibility
+      });
       
-      // Update global sticker color if changed
-      if (sticker.trim() && (colorChanged || !settings.stickerColors?.[sticker.trim()])) {
-        const nextColors = { ...(settings.stickerColors || {}), [sticker.trim()]: stickerColor };
+      // Update global sticker color for active sticker if changed
+      if (activeSticker && (stickerColor !== settings.stickerColors?.[activeSticker])) {
+        const nextColors = { ...(settings.stickerColors || {}), [activeSticker]: stickerColor };
         await saveUserSettings(uid, { ...settings, stickerColors: nextColors });
       }
 
@@ -773,10 +845,58 @@ function ExpenseRow({ uid, it, modes, settings }: { uid: string; it: Expense; mo
           <input className="neo-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
           <SourceSelect modes={modes} value={mode} onChange={(v) => setMode(v as SpendMode)} />
           <input className="neo-input" type="number" min="0" value={amount} onChange={(e) => setAmount(sanitizeNumberInput(e.target.value))} placeholder="Amount" />
-          <input className="neo-input" value={sticker} onChange={(e) => setSticker(e.target.value)} placeholder="Sticker (e.g. OWED)" />
-          {sticker.trim() && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "4px" }}>
+            {stickers.map((st, idx) => (
+              <div 
+                key={idx} 
+                className={`expense-sticker ${activeSticker === st ? 'active-edit' : ''}`}
+                style={{ 
+                  background: (st === activeSticker ? stickerColor : (settings.stickerColors?.[st] || "#a3e635")),
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                onClick={() => setActiveSticker(st)}
+              >
+                {st}
+                <span 
+                  onClick={(e) => { e.stopPropagation(); setStickers(prev => prev.filter((_, i) => i !== idx)); if(activeSticker === st) setActiveSticker(""); }}
+                  style={{ opacity: 0.6, fontSize: '14px', fontWeight: 900 }}
+                >✕</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input 
+              className="neo-input" 
+              value={newSticker} 
+              onChange={(e) => { setNewSticker(e.target.value); setActiveSticker(e.target.value); }} 
+              placeholder="Add Sticker" 
+              onFocus={() => setActiveSticker(newSticker)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newSticker.trim()) {
+                  if (!stickers.includes(newSticker.trim())) {
+                    setStickers(prev => [...prev, newSticker.trim()]);
+                  }
+                  setNewSticker("");
+                }
+              }}
+            />
+            <button 
+              className="action-btn" 
+              style={{ flexShrink: 0 }}
+              onClick={() => {
+                if (newSticker.trim() && !stickers.includes(newSticker.trim())) {
+                  setStickers(prev => [...prev, newSticker.trim()]);
+                  setNewSticker("");
+                }
+              }}
+            >ADD</button>
+          </div>
+          {activeSticker.trim() && (
             <div className="neo-input-group" style={{ marginBottom: 0 }}>
-              <label style={{ fontSize: '11px' }}>Sticker Color</label>
+              <label style={{ fontSize: '11px' }}>Color for: {activeSticker}</label>
               <div className="color-picker-wrapper">
                 {["#4f46e5", "#dca318", "#f34b7d", "#ea580c", "#16a34a", "#0bc99d", "#9333ea", "#0a0a0a", "#3b82f6", "#a3e635"].map(c => (
                   <button
@@ -801,7 +921,7 @@ function ExpenseRow({ uid, it, modes, settings }: { uid: string; it: Expense; mo
         </div>
         <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
           <button className="action-btn" onClick={() => void onSaveEdit()} disabled={busy || !changed}>SAVE</button>
-          <button className="action-btn del" onClick={() => { setEditing(false); setTitle(it.title); setAmount(String(it.amount)); setMode(it.mode); setSticker(it.sticker || ""); }} disabled={busy}>CANCEL</button>
+          <button className="action-btn del" onClick={() => { setEditing(false); setTitle(it.title); setAmount(String(it.amount)); setMode(it.mode); setStickers(it.stickers || (it.sticker ? [it.sticker] : [])); setNewSticker(""); setActiveSticker(""); }} disabled={busy}>CANCEL</button>
         </div>
       </div>
     );
@@ -814,7 +934,9 @@ function ExpenseRow({ uid, it, modes, settings }: { uid: string; it: Expense; mo
           <div className="title">{it.title}</div>
           <div className="expense-amount-area">
             <span className="expense-mode" style={{ background: modeDef.color }}>{modeDef.name}</span>
-            {it.sticker && <span className="expense-sticker" style={{ background: settings.stickerColors?.[it.sticker] || "#a3e635" }}>{it.sticker}</span>}
+            {(it.stickers || (it.sticker ? [it.sticker] : [])).map((st, idx) => (
+              <span key={idx} className="expense-sticker" style={{ background: settings.stickerColors?.[st] || "#a3e635" }}>{st}</span>
+            ))}
             <span className="expense-amount">{fmtMoney(it.amount)}</span>
           </div>
         </div>
