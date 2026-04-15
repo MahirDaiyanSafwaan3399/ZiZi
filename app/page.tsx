@@ -140,10 +140,44 @@ function Dashboard({ uid }: { uid: string }) {
   const { items, loading, error } = useExpenses(uid);
   const { settings, loading: settingsLoading } = useUserSettings(uid);
 
-  const groups = useMemo(() => groupByDate(items), [items]);
-  const modes = settings.modes;
-
   const [mobileTab, setMobileTab] = useState<"ledger" | "add" | "sources">("ledger");
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    search: "",
+    source: "ALL",
+    minAmount: "",
+    maxAmount: "",
+    sticker: "ALL",
+  });
+
+  const uniqueStickers = useMemo(() => {
+    const s = new Set<string>();
+    items.forEach(it => { if (it.sticker) s.add(it.sticker); });
+    return Array.from(s).sort();
+  }, [items]);
+
+  const filteredItems = useMemo(() => {
+    return items.filter(it => {
+      const matchSearch = it.title.toLowerCase().includes(filters.search.toLowerCase());
+      const matchSource = filters.source === "ALL" || it.mode?.toUpperCase() === filters.source.toUpperCase();
+
+      const amt = it.amount;
+      const min = filters.minAmount === "" ? -Infinity : Number(filters.minAmount);
+      const max = filters.maxAmount === "" ? Infinity : Number(filters.maxAmount);
+      const matchAmount = amt >= min && amt <= max;
+
+      const matchSticker = filters.sticker === "ALL"
+        ? true
+        : filters.sticker === "NONE"
+          ? !it.sticker
+          : it.sticker === filters.sticker;
+
+      return matchSearch && matchSource && matchAmount && matchSticker;
+    });
+  }, [items, filters]);
+
+  const groups = useMemo(() => groupByDate(filteredItems), [filteredItems]);
+  const modes = settings.modes;
 
   const totalBySource = useMemo(() => {
     return items.reduce((acc, x) => {
@@ -196,11 +230,101 @@ function Dashboard({ uid }: { uid: string }) {
 
       <div className={`main-content ${mobileTab === "add" || mobileTab === "sources" ? "hide-on-mobile" : ""}`}>
         <div className="neo-card ledger-card">
-          <div className="ledger-title-area">
-            <h2 className="card-title">DAILY EXPENSE</h2>
-            <div className="global-avg-badge">
-              <span className="label">ALL-TIME DAILY AVG</span>
-              <span className="value">{fmtMoney(avgPerDay)}</span>
+          <div className="ledger-header-wrapper">
+            <div className="ledger-title-area">
+              <h2 className="card-title">DAILY EXPENSE</h2>
+              <div className="title-actions">
+                <button
+                  className={`action-btn small ${showFilters ? 'active' : ''}`}
+                  onClick={() => setShowFilters(!showFilters)}
+                  style={{ background: showFilters ? 'var(--accent-primary)' : '#fff', color: showFilters ? '#fff' : 'var(--text-main)' }}
+                >
+                  {showFilters ? 'CLOSE FILTERS' : 'FILTERS'}
+                </button>
+                <div className="global-avg-badge hide-on-mobile">
+                  <span className="label">DAILY AVG</span>
+                  <span className="value">{fmtMoney(avgPerDay)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className={`filter-panel ${showFilters ? 'open' : ''}`}>
+              <div className="filter-row">
+                <div className="filter-group">
+                  <div className="filter-section-title">SEARCH TITLE</div>
+                  <div className="filter-input-wrapper">
+                    <input
+                      className="neo-input"
+                      placeholder="Type to search..."
+                      value={filters.search}
+                      onChange={e => setFilters({ ...filters, search: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="filter-group">
+                  <div className="filter-section-title">AMOUNT RANGE</div>
+                  <div className="amount-range">
+                    <input
+                      className="neo-input"
+                      type="number"
+                      placeholder="MIN"
+                      value={filters.minAmount}
+                      onChange={e => setFilters({ ...filters, minAmount: e.target.value })}
+                    />
+                    <span style={{ fontWeight: 900, fontSize: '11px', opacity: 0.6 }}>TO</span>
+                    <input
+                      className="neo-input"
+                      type="number"
+                      placeholder="MAX"
+                      value={filters.maxAmount}
+                      onChange={e => setFilters({ ...filters, maxAmount: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="filter-row" style={{ marginTop: '24px' }}>
+                <div className="filter-group">
+                  <div className="filter-section-title">FILTER BY SOURCE</div>
+                  <div className="filter-chips">
+                    <button className={`filter-chip ${filters.source === 'ALL' ? 'active' : ''}`} onClick={() => setFilters({ ...filters, source: 'ALL' })}>ALL</button>
+                    {modes.map(m => (
+                      <button
+                        key={m.id}
+                        className={`filter-chip ${filters.source === m.id ? 'active' : ''}`}
+                        onClick={() => setFilters({ ...filters, source: m.id })}
+                      >
+                        {m.name.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="filter-group">
+                  <div className="filter-section-title">STICKERS / TAGS</div>
+                  <div className="filter-chips">
+                    <button className={`filter-chip ${filters.sticker === 'ALL' ? 'active' : ''}`} onClick={() => setFilters({ ...filters, sticker: 'ALL' })}>ANY</button>
+                    <button className={`filter-chip ${filters.sticker === 'NONE' ? 'active' : ''}`} onClick={() => setFilters({ ...filters, sticker: 'NONE' })}>NONE</button>
+                    {uniqueStickers.map(s => (
+                      <button
+                        key={s}
+                        className={`filter-chip ${filters.sticker === s ? 'active' : ''}`}
+                        onClick={() => setFilters({ ...filters, sticker: s })}
+                      >
+                        {s.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                className="action-btn small filter-reset-btn"
+                onClick={() => setFilters({ search: "", source: "ALL", minAmount: "", maxAmount: "", sticker: "ALL" })}
+              >
+                RESET ALL FILTERS
+              </button>
             </div>
           </div>
 
@@ -478,21 +602,21 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
 
         <div className="neo-input-group">
           <label style={{ display: 'flex', justifyContent: 'space-between' }}>
-            Title 
+            Title
             <span style={{ fontSize: '10px', opacity: 0.6 }}>{title.trim().split(/\s+/).filter(Boolean).length}/5 WORDS</span>
           </label>
-          <input 
-            className="neo-input" 
-            placeholder="e.g. sandwich" 
-            value={title} 
+          <input
+            className="neo-input"
+            placeholder="e.g. sandwich"
+            value={title}
             onChange={(e) => {
               const val = e.target.value;
               const words = val.trim().split(/\s+/).filter(Boolean);
               if (words.length <= 5 || val.length < title.length) {
                 setTitle(val);
               }
-            }} 
-            onKeyDown={(e) => { if (e.key === "Enter") void onSubmit(); }} 
+            }}
+            onKeyDown={(e) => { if (e.key === "Enter") void onSubmit(); }}
           />
         </div>
       </div>
@@ -512,11 +636,11 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
         🚨 {roast}
       </div>
 
-      <SlideToBurn 
-        onComplete={() => void onSubmit()} 
-        disabled={!canSubmit || busy} 
-        text={btnText} 
-        isIntense={parsedAmount > 500} 
+      <SlideToBurn
+        onComplete={() => void onSubmit()}
+        disabled={!canSubmit || busy}
+        text={btnText}
+        isIntense={parsedAmount > 500}
       />
     </div>
   );
