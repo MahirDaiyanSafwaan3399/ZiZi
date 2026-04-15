@@ -26,6 +26,7 @@ export type SpendModeDef = {
 
 export type UserSettings = {
   modes: SpendModeDef[];
+  stickerColors?: Record<string, string>;
 };
 
 export type ExpenseSubItem = {

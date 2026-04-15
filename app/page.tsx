@@ -272,7 +272,7 @@ function Dashboard({ uid }: { uid: string }) {
                       value={filters.minAmount}
                       onChange={e => setFilters({ ...filters, minAmount: e.target.value })}
                     />
-                    <span style={{ fontWeight: 900, fontSize: '11px', opacity: 0.6 }}>TO</span>
+                    <div style={{ fontWeight: 900, fontSize: '11px', opacity: 0.6, flexShrink: 0 }}>TO</div>
                     <input
                       className="neo-input"
                       type="number"
@@ -337,7 +337,7 @@ function Dashboard({ uid }: { uid: string }) {
 
           <div className="ledger-scroll-area">
             {groups.map((g) => (
-              <DayGroup key={g.date} uid={uid} date={g.date} list={g.list} total={g.total} modes={modes} globalAvg={avgPerDay} />
+              <DayGroup key={g.date} uid={uid} date={g.date} list={g.list} total={g.total} modes={modes} globalAvg={avgPerDay} settings={settings} />
             ))}
           </div>
         </div>
@@ -646,7 +646,7 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
   );
 }
 
-function DayGroup({ uid, date, list, total, modes, globalAvg }: { uid: string; date: string; list: Expense[]; total: number; modes: SpendModeDef[]; globalAvg: number }) {
+function DayGroup({ uid, date, list, total, modes, globalAvg, settings }: { uid: string; date: string; list: Expense[]; total: number; modes: SpendModeDef[]; globalAvg: number; settings: UserSettings }) {
   return (
     <div className="expense-group">
       <div className="group-header">
@@ -655,30 +655,40 @@ function DayGroup({ uid, date, list, total, modes, globalAvg }: { uid: string; d
       </div>
       <div>
         {list.map((it) => (
-          <ExpenseRow key={it.id} uid={uid} it={it} modes={modes} />
+          <ExpenseRow key={it.id} uid={uid} it={it} modes={modes} settings={settings} />
         ))}
       </div>
     </div>
   );
 }
 
-function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: SpendModeDef[]; }) {
+function ExpenseRow({ uid, it, modes, settings }: { uid: string; it: Expense; modes: SpendModeDef[]; settings: UserSettings }) {
   const [editing, setEditing] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [subToDelete, setSubToDelete] = useState<ExpenseSubItem | null>(null);
 
   // Edit State
   const [title, setTitle] = useState(it.title);
   const [amount, setAmount] = useState(String(it.amount));
   const [mode, setMode] = useState<SpendMode>(it.mode);
   const [sticker, setSticker] = useState(it.sticker || "");
+  const [stickerColor, setStickerColor] = useState(settings.stickerColors?.[it.sticker || ""] || "#a3e635");
 
   // Breakdown State
   const [bdTitle, setBdTitle] = useState("");
   const [bdAmount, setBdAmount] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const changed = title.trim() !== it.title || Number(amount) !== it.amount || mode !== it.mode || sticker.trim() !== (it.sticker || "");
+  // Update sticker color state when sticker name changes if it exists in settings
+  useEffect(() => {
+    if (settings.stickerColors?.[sticker]) {
+      setStickerColor(settings.stickerColors[sticker]);
+    }
+  }, [sticker, settings.stickerColors]);
+
+  const colorChanged = stickerColor !== (settings.stickerColors?.[it.sticker || ""] || "#a3e635");
+  const changed = title.trim() !== it.title || Number(amount) !== it.amount || mode !== it.mode || sticker.trim() !== (it.sticker || "") || colorChanged;
   const currentBreakdownTotal = (it.subItems || []).reduce((acc, sub) => acc + sub.amount, 0);
 
   const modeDef = modes.find(m => m.id.toUpperCase() === it.mode?.toUpperCase()) || { id: it.mode, name: it.mode, color: '#e5e5e5' };
@@ -689,6 +699,13 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
     setBusy(true);
     try {
       await updateExpense(uid, it.id, { title: title.trim(), amount: n, mode, sticker: sticker.trim() });
+      
+      // Update global sticker color if changed
+      if (sticker.trim() && (colorChanged || !settings.stickerColors?.[sticker.trim()])) {
+        const nextColors = { ...(settings.stickerColors || {}), [sticker.trim()]: stickerColor };
+        await saveUserSettings(uid, { ...settings, stickerColors: nextColors });
+      }
+
       setEditing(false);
       triggerToast("EDIT SAVED. YOU'RE STILL BROKE THOUGH.", "success");
     } finally {
@@ -742,8 +759,10 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
     try {
       const nextSubs = (it.subItems || []).filter(sub => sub.id !== subId);
       await updateExpense(uid, it.id, { subItems: nextSubs });
+      triggerToast("SPLIT ERASED. BALANCE RESTORED... FOR NOW.", "roast");
     } finally {
       setBusy(false);
+      setSubToDelete(null);
     }
   }
 
@@ -755,6 +774,30 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
           <SourceSelect modes={modes} value={mode} onChange={(v) => setMode(v as SpendMode)} />
           <input className="neo-input" type="number" min="0" value={amount} onChange={(e) => setAmount(sanitizeNumberInput(e.target.value))} placeholder="Amount" />
           <input className="neo-input" value={sticker} onChange={(e) => setSticker(e.target.value)} placeholder="Sticker (e.g. OWED)" />
+          {sticker.trim() && (
+            <div className="neo-input-group" style={{ marginBottom: 0 }}>
+              <label style={{ fontSize: '11px' }}>Sticker Color</label>
+              <div className="color-picker-wrapper">
+                {["#4f46e5", "#dca318", "#f34b7d", "#ea580c", "#16a34a", "#0bc99d", "#9333ea", "#0a0a0a", "#3b82f6", "#a3e635"].map(c => (
+                  <button
+                    key={c}
+                    className={`color-preset ${stickerColor === c ? 'active' : ''}`}
+                    style={{ background: c, width: '24px', height: '24px' }}
+                    onClick={() => setStickerColor(c)}
+                    type="button"
+                  />
+                ))}
+                <div className={`custom-color-wrapper ${!["#4f46e5", "#dca318", "#f34b7d", "#ea580c", "#16a34a", "#0bc99d", "#9333ea", "#0a0a0a", "#3b82f6", "#a3e635"].includes(stickerColor) ? 'active' : ''}`} style={{ width: '24px', height: '24px' }}>
+                  <input
+                    type="color"
+                    className="custom-color-input"
+                    value={stickerColor}
+                    onChange={e => setStickerColor(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
           <button className="action-btn" onClick={() => void onSaveEdit()} disabled={busy || !changed}>SAVE</button>
@@ -771,7 +814,7 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
           <div className="title">{it.title}</div>
           <div className="expense-amount-area">
             <span className="expense-mode" style={{ background: modeDef.color }}>{modeDef.name}</span>
-            {it.sticker && <span className="expense-sticker">{it.sticker}</span>}
+            {it.sticker && <span className="expense-sticker" style={{ background: settings.stickerColors?.[it.sticker] || "#a3e635" }}>{it.sticker}</span>}
             <span className="expense-amount">{fmtMoney(it.amount)}</span>
           </div>
         </div>
@@ -809,6 +852,33 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
         </div>
       )}
 
+      {subToDelete && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <h2 className="card-title">ERASE THIS SPLIT?</h2>
+            <p className="modal-text">
+              ARE YOU SURE YOU WANT TO REMOVE <span className="highlight-text">{subToDelete.title}</span>? 
+            </p>
+            <div className="modal-actions">
+              <button
+                className="neo-btn danger-btn"
+                onClick={() => void onDeleteBreakdown(subToDelete.id)}
+                disabled={busy}
+              >
+                YES, ERASE IT
+              </button>
+              <button
+                className="neo-btn cancel-btn"
+                onClick={() => setSubToDelete(null)}
+                disabled={busy}
+              >
+                NEVERMIND
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isExpanded && (
         <div className="breakdown-container">
           <div className="breakdown-tree-line"></div>
@@ -823,7 +893,7 @@ function ExpenseRow({ uid, it, modes }: { uid: string; it: Expense; modes: Spend
                   </div>
                   <span className="sub-amount">{fmtMoney(sub.amount)}</span>
                 </div>
-                <button className="action-btn del small" onClick={() => void onDeleteBreakdown(sub.id)} disabled={busy}>✕</button>
+                <button className="action-btn del small" onClick={() => setSubToDelete(sub)} disabled={busy}>✕</button>
               </div>
             ))}
 
