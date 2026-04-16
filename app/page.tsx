@@ -64,7 +64,7 @@ function ToastContainer() {
 
 function fmtMoney(n: number) {
   if (!Number.isFinite(n)) return "—";
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
+  return "৳" + new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
 }
 
 function groupByDate(items: Expense[]) {
@@ -521,7 +521,7 @@ function SourcesManager({ uid, settings }: { uid: string, settings: UserSettings
 
 function getSavageRoast(amount: number, title: string) {
   if (!amount || amount <= 0) return "READY TO MAKE BAD DECISIONS?";
-  if (amount < 10) return "WOW, A WHOLE " + amount + ". DON'T GO BANKRUPT.";
+  if (amount < 10) return "WOW, A WHOLE " + fmtMoney(amount) + ". DON'T GO BANKRUPT.";
   if (amount < 50) return "COULD HAVE SAVED THAT. JUST SAYING.";
   if (amount < 100) return title ? `DO YOU REALLY NEED "${title.toUpperCase()}"? NO.` : "DO YOU ENJOY BEING POOR?";
   if (amount < 500) return "FINANCIAL FREEDOM JUST SWIPED LEFT ON YOU.";
@@ -543,8 +543,6 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
   const [mode, setMode] = useState<SpendMode>(modes[0]?.id || "");
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState<string>("");
-  const [stickers, setStickers] = useState<string[]>([]);
-  const [newSticker, setNewSticker] = useState("");
   const [busy, setBusy] = useState(false);
   const parsedAmount = Number(amount);
 
@@ -569,13 +567,9 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
         mode,
         title: title.trim(),
         amount: parsedAmount,
-        stickers: stickers,
-        sticker: stickers[0] || "",
       });
       setTitle("");
       setAmount("");
-      setStickers([]);
-      setNewSticker("");
       if (onAdded) onAdded();
     } finally {
       setBusy(false);
@@ -608,7 +602,7 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
 
         <div className="neo-input-group">
           <label>Amount</label>
-          <input className="neo-input" type="number" min="0" step="1" placeholder="e.g. 500" value={amount} onChange={(e) => setAmount(sanitizeNumberInput(e.target.value))} />
+          <input className="neo-input" type="number" min="0" step="1" placeholder="e.g. ৳500" value={amount} onChange={(e) => setAmount(sanitizeNumberInput(e.target.value))} />
         </div>
 
         <div className="neo-input-group">
@@ -629,55 +623,6 @@ function AddExpenseCard({ uid, modes, onAdded }: { uid: string; modes: SpendMode
             }}
             onKeyDown={(e) => { if (e.key === "Enter") void onSubmit(); }}
           />
-        </div>
-
-        <div className="neo-input-group" style={{ gridColumn: 'span 2' }}>
-          <label>Stickers / Tags</label>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "8px" }}>
-            {stickers.map((st, idx) => (
-              <div 
-                key={idx} 
-                className="expense-sticker"
-                style={{ 
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-              >
-                {st}
-                <span 
-                  onClick={() => setStickers(prev => prev.filter((_, i) => i !== idx))}
-                  style={{ opacity: 0.6, fontSize: '14px', fontWeight: 900, cursor: 'pointer' }}
-                >✕</span>
-              </div>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <input 
-              className="neo-input" 
-              value={newSticker} 
-              onChange={(e) => setNewSticker(e.target.value)} 
-              placeholder="e.g. LUNCH" 
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && newSticker.trim()) {
-                  if (!stickers.includes(newSticker.trim())) {
-                    setStickers(prev => [...prev, newSticker.trim()]);
-                  }
-                  setNewSticker("");
-                }
-              }}
-            />
-            <button 
-              className="action-btn" 
-              style={{ flexShrink: 0 }}
-              onClick={() => {
-                if (newSticker.trim() && !stickers.includes(newSticker.trim())) {
-                  setStickers(prev => [...prev, newSticker.trim()]);
-                  setNewSticker("");
-                }
-              }}
-            >ADD</button>
-          </div>
         </div>
       </div>
 
@@ -844,7 +789,7 @@ function ExpenseRow({ uid, it, modes, settings }: { uid: string; it: Expense; mo
         <div className="edit-form-grid">
           <input className="neo-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
           <SourceSelect modes={modes} value={mode} onChange={(v) => setMode(v as SpendMode)} />
-          <input className="neo-input" type="number" min="0" value={amount} onChange={(e) => setAmount(sanitizeNumberInput(e.target.value))} placeholder="Amount" />
+          <input className="neo-input" type="number" min="0" value={amount} onChange={(e) => setAmount(sanitizeNumberInput(e.target.value))} placeholder="Amount (৳)" />
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "4px" }}>
             {stickers.map((st, idx) => (
               <div 
@@ -1021,7 +966,7 @@ function ExpenseRow({ uid, it, modes, settings }: { uid: string; it: Expense; mo
 
             <div className="sub-item-form">
               <input className="neo-input small" placeholder="Sub-item" value={bdTitle} onChange={(e) => setBdTitle(e.target.value)} />
-              <input className="neo-input small" type="number" min="0" placeholder="Amt" value={bdAmount} onChange={(e) => setBdAmount(sanitizeNumberInput(e.target.value))} />
+              <input className="neo-input small" type="number" min="0" placeholder="৳ Amt" value={bdAmount} onChange={(e) => setBdAmount(sanitizeNumberInput(e.target.value))} />
               <button className="action-btn" onClick={() => void onSaveBreakdown()} disabled={busy || !bdTitle || !bdAmount}>ADD</button>
             </div>
 
