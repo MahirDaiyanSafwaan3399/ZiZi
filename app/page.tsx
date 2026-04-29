@@ -184,6 +184,34 @@ function Dashboard({ uid }: { uid: string }) {
   const groups = useMemo(() => groupByDate(filteredItems), [filteredItems]);
   const modes = settings.modes;
 
+  const currentMonthStr = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+
+  const currentMonthName = useMemo(() => {
+    return new Date().toLocaleString('default', { month: 'short' }).toUpperCase();
+  }, []);
+
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
+
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    items.forEach(it => {
+      const m = it.date.substring(0, 7); // yyyy-mm
+      months.add(m);
+    });
+    // Ensure current month is always there
+    months.add(currentMonthStr);
+    return Array.from(months).sort().reverse();
+  }, [items, currentMonthStr]);
+
+  const selectedMonthName = useMemo(() => {
+    const [y, m] = selectedMonth.split("-");
+    const d = new Date(parseInt(y), parseInt(m) - 1);
+    return d.toLocaleString('default', { month: 'short' }).toUpperCase();
+  }, [selectedMonth]);
+
   const totalBySource = useMemo(() => {
     return items.reduce((acc, x) => {
       const modeKey = x.mode?.toUpperCase();
@@ -193,6 +221,20 @@ function Dashboard({ uid }: { uid: string }) {
       return acc;
     }, {} as Record<string, number>);
   }, [items]);
+
+  const totalBySourceSelectedMonth = useMemo(() => {
+    return items.filter(it => it.date.startsWith(selectedMonth)).reduce((acc, x) => {
+      const modeKey = x.mode?.toUpperCase();
+      if (modeKey) {
+        acc[modeKey] = (acc[modeKey] || 0) + x.amount;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+  }, [items, selectedMonth]);
+
+  const totalThisMonth = useMemo(() => {
+    return items.filter(it => it.date.startsWith(selectedMonth)).reduce((s, x) => s + x.amount, 0);
+  }, [items, selectedMonth]);
 
   const totalAllTime = useMemo(() => items.reduce((s, x) => s + x.amount, 0), [items]);
   const avgPerDay = useMemo(() => (groups.length > 0 ? totalAllTime / groups.length : 0), [totalAllTime, groups.length]);
@@ -217,6 +259,17 @@ function Dashboard({ uid }: { uid: string }) {
                 <div key={m.id} className="stat-box" style={{ background: m.color, color: 'var(--text-main)' }}>
                   <div className="stat-label">{m.name.toUpperCase()} TOTAL</div>
                   <div className="stat-value">{fmtMoney(totalBySource[m.id.toUpperCase()] || 0)}</div>
+                  <div className="stat-monthly">
+                    <MonthSelector 
+                      availableMonths={availableMonths} 
+                      selectedMonth={selectedMonth} 
+                      onSelect={setSelectedMonth} 
+                    />
+                    <span className="monthly-value">
+                      {fmtMoney(totalBySourceSelectedMonth[m.id.toUpperCase()] || 0)}
+                    </span>
+                    <span className="month-tag">{selectedMonthName}</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -246,6 +299,10 @@ function Dashboard({ uid }: { uid: string }) {
                 >
                   {showFilters ? 'CLOSE FILTERS' : 'FILTERS'}
                 </button>
+                <div className="global-avg-badge hide-on-mobile">
+                  <span className="label">{selectedMonthName} TOTAL</span>
+                  <span className="value">{fmtMoney(totalThisMonth)}</span>
+                </div>
                 <div className="global-avg-badge hide-on-mobile">
                   <span className="label">DAILY AVG</span>
                   <span className="value">{fmtMoney(avgPerDay)}</span>
@@ -974,6 +1031,56 @@ function ExpenseRow({ uid, it, modes, settings }: { uid: string; it: Expense; mo
               <div className="sub-item-summary">Remaining: {fmtMoney(it.amount - currentBreakdownTotal)}</div>
             )}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function MonthSelector({ availableMonths, selectedMonth, onSelect }: { 
+  availableMonths: string[], 
+  selectedMonth: string, 
+  onSelect: (m: string) => void 
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function fmtMonth(iso: string) {
+    const [y, m] = iso.split("-");
+    const d = new Date(parseInt(y), parseInt(m) - 1);
+    return d.toLocaleString('default', { month: 'short', year: '2-digit' }).toUpperCase();
+  }
+
+  return (
+    <div className="month-selector-container" ref={containerRef}>
+      <button className="arrow" onClick={() => setIsOpen(!isOpen)}>
+        {isOpen ? "▲" : "▼"}
+      </button>
+      {isOpen && (
+        <div className="month-dropdown">
+          {availableMonths.map(m => (
+            <div 
+              key={m} 
+              className={`month-option ${m === selectedMonth ? 'active' : ''}`}
+              onClick={() => {
+                onSelect(m);
+                setIsOpen(false);
+              }}
+            >
+              {fmtMonth(m)}
+            </div>
+          ))}
         </div>
       )}
     </div>
