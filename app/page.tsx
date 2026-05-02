@@ -150,6 +150,36 @@ function Dashboard({ uid }: { uid: string }) {
     sticker: "ALL",
   });
 
+  const currentMonthStr = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+
+  const currentMonthName = useMemo(() => {
+    return new Date().toLocaleString('default', { month: 'short' }).toUpperCase();
+  }, []);
+
+  const [selectedMonth, setSelectedMonth] = useState("ALL");
+
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    items.forEach(it => {
+      const m = it.date.substring(0, 7); // yyyy-mm
+      months.add(m);
+    });
+    // Ensure current month is always there
+    months.add(currentMonthStr);
+    const sorted = Array.from(months).sort().reverse();
+    return ["ALL", ...sorted];
+  }, [items, currentMonthStr]);
+
+  const selectedMonthName = useMemo(() => {
+    if (selectedMonth === "ALL") return "ALL TIME";
+    const [y, m] = selectedMonth.split("-");
+    const d = new Date(parseInt(y), parseInt(m) - 1);
+    return d.toLocaleString('default', { month: 'short' }).toUpperCase();
+  }, [selectedMonth]);
+
   const uniqueStickers = useMemo(() => {
     const s = new Set<string>();
     items.forEach(it => {
@@ -177,40 +207,14 @@ function Dashboard({ uid }: { uid: string }) {
           ? itStickers.length === 0
           : itStickers.includes(filters.sticker);
 
-      return matchSearch && matchSource && matchAmount && matchSticker;
+      const matchMonth = selectedMonth === "ALL" || it.date.startsWith(selectedMonth);
+
+      return matchSearch && matchSource && matchAmount && matchSticker && matchMonth;
     });
-  }, [items, filters]);
+  }, [items, filters, selectedMonth]);
 
   const groups = useMemo(() => groupByDate(filteredItems), [filteredItems]);
   const modes = settings.modes;
-
-  const currentMonthStr = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-  }, []);
-
-  const currentMonthName = useMemo(() => {
-    return new Date().toLocaleString('default', { month: 'short' }).toUpperCase();
-  }, []);
-
-  const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
-
-  const availableMonths = useMemo(() => {
-    const months = new Set<string>();
-    items.forEach(it => {
-      const m = it.date.substring(0, 7); // yyyy-mm
-      months.add(m);
-    });
-    // Ensure current month is always there
-    months.add(currentMonthStr);
-    return Array.from(months).sort().reverse();
-  }, [items, currentMonthStr]);
-
-  const selectedMonthName = useMemo(() => {
-    const [y, m] = selectedMonth.split("-");
-    const d = new Date(parseInt(y), parseInt(m) - 1);
-    return d.toLocaleString('default', { month: 'short' }).toUpperCase();
-  }, [selectedMonth]);
 
   const totalBySource = useMemo(() => {
     return items.reduce((acc, x) => {
@@ -223,7 +227,7 @@ function Dashboard({ uid }: { uid: string }) {
   }, [items]);
 
   const totalBySourceSelectedMonth = useMemo(() => {
-    return items.filter(it => it.date.startsWith(selectedMonth)).reduce((acc, x) => {
+    return items.filter(it => selectedMonth === "ALL" || it.date.startsWith(selectedMonth)).reduce((acc, x) => {
       const modeKey = x.mode?.toUpperCase();
       if (modeKey) {
         acc[modeKey] = (acc[modeKey] || 0) + x.amount;
@@ -233,11 +237,11 @@ function Dashboard({ uid }: { uid: string }) {
   }, [items, selectedMonth]);
 
   const totalThisMonth = useMemo(() => {
-    return items.filter(it => it.date.startsWith(selectedMonth)).reduce((s, x) => s + x.amount, 0);
+    return items.filter(it => selectedMonth === "ALL" || it.date.startsWith(selectedMonth)).reduce((s, x) => s + x.amount, 0);
   }, [items, selectedMonth]);
 
   const totalAllTime = useMemo(() => items.reduce((s, x) => s + x.amount, 0), [items]);
-  const avgPerDay = useMemo(() => (groups.length > 0 ? totalAllTime / groups.length : 0), [totalAllTime, groups.length]);
+  const avgPerDay = useMemo(() => (groups.length > 0 ? totalThisMonth / groups.length : 0), [totalThisMonth, groups.length]);
 
   if (settingsLoading) return <div><h1 className="splash-title">SYNCING SETTINGS...</h1></div>;
 
@@ -260,15 +264,14 @@ function Dashboard({ uid }: { uid: string }) {
                   <div className="stat-label">{m.name.toUpperCase()} TOTAL</div>
                   <div className="stat-value">{fmtMoney(totalBySource[m.id.toUpperCase()] || 0)}</div>
                   <div className="stat-monthly">
+                    <span className="monthly-value">
+                      {fmtMoney(totalBySourceSelectedMonth[m.id.toUpperCase()] || 0)}
+                    </span>
                     <MonthSelector 
                       availableMonths={availableMonths} 
                       selectedMonth={selectedMonth} 
                       onSelect={setSelectedMonth} 
                     />
-                    <span className="monthly-value">
-                      {fmtMoney(totalBySourceSelectedMonth[m.id.toUpperCase()] || 0)}
-                    </span>
-                    <span className="month-tag">{selectedMonthName}</span>
                   </div>
                 </div>
               ))}
@@ -1057,6 +1060,7 @@ function MonthSelector({ availableMonths, selectedMonth, onSelect }: {
   }, []);
 
   function fmtMonth(iso: string) {
+    if (iso === "ALL") return "ALL TIME";
     const [y, m] = iso.split("-");
     const d = new Date(parseInt(y), parseInt(m) - 1);
     return d.toLocaleString('default', { month: 'short', year: '2-digit' }).toUpperCase();
@@ -1064,8 +1068,9 @@ function MonthSelector({ availableMonths, selectedMonth, onSelect }: {
 
   return (
     <div className="month-selector-container" ref={containerRef}>
-      <button className="arrow" onClick={() => setIsOpen(!isOpen)}>
-        {isOpen ? "▲" : "▼"}
+      <button className={`month-selector-trigger ${isOpen ? 'open' : ''}`} onClick={() => setIsOpen(!isOpen)}>
+        <span>{fmtMonth(selectedMonth)}</span>
+        <span className="arrow">▼</span>
       </button>
       {isOpen && (
         <div className="month-dropdown">
