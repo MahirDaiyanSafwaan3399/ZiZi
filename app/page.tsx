@@ -67,6 +67,12 @@ function fmtMoney(n: number) {
   return "৳" + new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
 }
 
+function formatMonthKey(monthKey: string) {
+  const [y, m] = monthKey.split("-");
+  const d = new Date(parseInt(y), parseInt(m) - 1);
+  return d.toLocaleString('default', { month: 'long', year: 'numeric' }).toUpperCase();
+}
+
 function groupByDate(items: Expense[]) {
   const m = new Map<string, Expense[]>();
   for (const it of items) {
@@ -214,6 +220,19 @@ function Dashboard({ uid }: { uid: string }) {
   }, [items, filters, selectedMonth]);
 
   const groups = useMemo(() => groupByDate(filteredItems), [filteredItems]);
+  const groupsByMonth = useMemo(() => {
+    const monthsMap = new Map<string, typeof groups>();
+    for (const g of groups) {
+      const monthKey = g.date.substring(0, 7); // "YYYY-MM"
+      const monthGroups = monthsMap.get(monthKey) ?? [];
+      monthGroups.push(g);
+      monthsMap.set(monthKey, monthGroups);
+    }
+    return [...monthsMap.entries()].map(([month, dayGroups]) => ({
+      month,
+      dayGroups,
+    }));
+  }, [groups]);
   const modes = settings.modes;
 
   const totalBySource = useMemo(() => {
@@ -401,8 +420,17 @@ function Dashboard({ uid }: { uid: string }) {
           )}
 
           <div className="ledger-scroll-area">
-            {groups.map((g) => (
-              <DayGroup key={g.date} uid={uid} date={g.date} list={g.list} total={g.total} modes={modes} globalAvg={avgPerDay} settings={settings} />
+            {groupsByMonth.map(({ month, dayGroups }) => (
+              <div key={month} className="month-section">
+                <div className="month-separator-container">
+                  <div className="month-separator">
+                    {formatMonthKey(month)}
+                  </div>
+                </div>
+                {dayGroups.map((g) => (
+                  <DayGroup key={g.date} uid={uid} date={g.date} list={g.list} total={g.total} modes={modes} globalAvg={avgPerDay} settings={settings} />
+                ))}
+              </div>
             ))}
           </div>
         </div>

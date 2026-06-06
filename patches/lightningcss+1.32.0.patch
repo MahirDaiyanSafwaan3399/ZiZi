@@ -1,0 +1,24 @@
+diff --git a/node_modules/lightningcss/node/index.js b/node_modules/lightningcss/node/index.js
+index 6fe25ae..b5882cd 100644
+--- a/node_modules/lightningcss/node/index.js
++++ b/node_modules/lightningcss/node/index.js
+@@ -15,9 +15,17 @@ if (process.platform === 'linux') {
+ 
+ let native;
+ try {
+-  native = require(`lightningcss-${parts.join('-')}`);
++  if (process.platform === 'win32' && process.arch === 'x64') {
++    native = require('lightningcss-win32-x64-msvc');
++  } else {
++    native = require(`lightningcss-${parts.join('-')}`);
++  }
+ } catch (err) {
+-  native = require(`../lightningcss.${parts.join('-')}.node`);
++  if (process.platform === 'win32' && process.arch === 'x64') {
++    native = require('lightningcss-win32-x64-msvc');
++  } else {
++    native = require(`../lightningcss.${parts.join('-')}.node`);
++  }
+ }
+ 
+ module.exports.transform = wrap(native.transform);
